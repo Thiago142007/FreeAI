@@ -381,7 +381,7 @@ Todas as 6 fases do projeto foram implementadas, testadas e integradas com suces
     - `Escape`: Fechar menus flutuantes e desfocar inputs.
     - Badges visuais de atalhos incorporados nos botões e tooltips do ActivityBar e Sidebar.
   - **Execução Real Headless Comprovada:**
-    - ChatGPT (`chatgpt.com`): Funcionamento **100% autônomo sem login prévio**, com streaming em tempo real e retorno de tool calls funcionais.
+    - ChatGPT (`chatgpt.com`): pode responder sem login prévio em algumas sessões; streaming e tool calls dependem do estado e das mudanças do site.
     - DeepSeek (`chat.deepseek.com`): Detecção automática de login (`/sign_in`), instruções claras via chat e suporte a DeepThink R1 com persistência de sessão.
     - Gemini (`gemini.google.com`): Suporte a sessão web headless.
     - Port estritamente travado na **1111** (`http://localhost:1111`).
@@ -415,7 +415,7 @@ sudo dpkg -i release/freeai_0.1.0_amd64.deb
 2. No painel auxiliar à direita, acesse a aba **Browser**.
 3. Clique em **Conectar Conta** ao lado de **DeepSeek**, **Gemini** ou **ChatGPT**.
 4. Uma janela única se abrirá para você realizar o login normalmente.
-5. Uma vez logado, feche a janela: a sessão ficará salva permanentemente e o navegador rodará **100% headless em segundo plano** para sempre!
+5. Após o login, os dados da sessão permanecem na partição local do Electron. O navegador é carregado em janela oculta quando o provedor é usado; disponibilidade e persistência dependem do provedor e da instalação local.
 
 ---
 
