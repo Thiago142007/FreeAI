@@ -12,6 +12,8 @@ Cliente desktop experimental para Linux que conecta provedores de IA por suas in
 - Ferramentas para listar, ler e editar arquivos e executar comandos locais.
 - Histórico local de conversas e projetos.
 
+Consulte o [histórico de versões](CHANGELOG.md) para ver as mudanças de cada release.
+
 O acesso aos provedores depende de suas contas, disponibilidade, limites e termos de uso. O projeto não oferece modelos nem acesso gratuito garantido.
 
 ## Requisitos

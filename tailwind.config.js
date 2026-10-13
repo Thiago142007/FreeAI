@@ -4,27 +4,29 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Antigravity Dark Theme — exact palette
+        // Mono Dark Theme — neutral grayscale, sem tinta de cor.
+        // accent/quase-branco é o destaque; indigo/purple viraram cinzas de
+        // hierarquia. green/amber/red continuam sendo cores de status.
         ag: {
-          bg: '#0e1015',
-          'bg-secondary': '#14171f',
-          'bg-card': '#1a1d26',
-          'bg-hover': '#1e222d',
-          'bg-active': '#252a37',
-          border: '#262a36',
-          'border-light': '#2f3445',
-          'border-focus': '#3b82f6',
-          text: '#e4e4e7',
-          'text-secondary': '#a1a1aa',
-          'text-muted': '#71717a',
-          accent: '#3b82f6',
-          'accent-hover': '#2563eb',
-          'accent-glow': 'rgba(59, 130, 246, 0.15)',
-          indigo: '#818cf8',
+          bg: '#0f0f0f',
+          'bg-secondary': '#161616',
+          'bg-card': '#1b1b1b',
+          'bg-hover': '#232323',
+          'bg-active': '#2b2b2b',
+          border: '#292929',
+          'border-light': '#3a3a3a',
+          'border-focus': '#e5e5e5',
+          text: '#f2f2f2',
+          'text-secondary': '#a6a6a6',
+          'text-muted': '#6f6f6f',
+          accent: '#e5e5e5',
+          'accent-hover': '#ffffff',
+          'accent-glow': 'rgba(255, 255, 255, 0.10)',
+          indigo: '#9e9e9e',
           green: '#10b981',
           amber: '#f59e0b',
           red: '#ef4444',
-          purple: '#a855f7',
+          purple: '#a1a1aa',
         },
       },
       fontFamily: {
@@ -60,8 +62,8 @@ export default {
         },
       },
       boxShadow: {
-        'glow-blue': '0 0 20px rgba(59, 130, 246, 0.15)',
-        'glow-sm': '0 0 10px rgba(59, 130, 246, 0.1)',
+        glow: '0 0 20px rgba(255, 255, 255, 0.07)',
+        'glow-sm': '0 0 10px rgba(255, 255, 255, 0.05)',
       },
     },
   },

@@ -90,9 +90,8 @@ export const SkillsView: React.FC = () => {
           return (
             <div
               key={skill.id}
-              className={`p-3 rounded-lg bg-ag-bg-card border transition-all ${
-                skill.enabled ? 'border-ag-border hover:border-ag-border-light' : 'border-ag-border/50 opacity-60'
-              }`}
+              className={`p-3 rounded-lg bg-ag-bg-card border transition-all ${skill.enabled ? 'border-ag-border hover:border-ag-border-light' : 'border-ag-border/50 opacity-60'
+                }`}
             >
               <div className="flex items-start justify-between gap-2 mb-1.5">
                 <div className="flex items-center gap-2">
@@ -109,15 +108,13 @@ export const SkillsView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => toggleSkill(skill.id)}
-                  className={`w-8 h-4.5 rounded-full transition-colors relative flex items-center px-0.5 ${
-                    skill.enabled ? 'bg-ag-accent' : 'bg-ag-bg-active border border-ag-border'
-                  }`}
+                  className={`w-8 h-4.5 rounded-full transition-colors relative flex items-center px-0.5 ${skill.enabled ? 'bg-ag-accent' : 'bg-ag-bg-active border border-ag-border'
+                    }`}
                   title={skill.enabled ? 'Desativar Skill' : 'Ativar Skill'}
                 >
                   <span
-                    className={`w-3.5 h-3.5 rounded-full bg-white transition-transform ${
-                      skill.enabled ? 'translate-x-3.5' : 'translate-x-0'
-                    }`}
+                    className={`w-3.5 h-3.5 rounded-full transition-transform ${skill.enabled ? 'bg-ag-bg translate-x-3.5' : 'bg-white translate-x-0'
+                      }`}
                   />
                 </button>
               </div>

@@ -50,6 +50,18 @@ declare global {
       onThinking: (callback: (data: { conversationId: string; thinkingText: string }) => void) => () => void;
       onToolCall: (callback: (data: { conversationId: string; toolCall: any }) => void) => () => void;
       onToolResult: (callback: (data: { conversationId: string; toolResult: any }) => void) => () => void;
+      onAskUser: (
+        callback: (data: {
+          conversationId: string;
+          requestId: string;
+          provider: string;
+          questions: import('./types').AskUserQuestion[];
+        }) => void
+      ) => () => void;
+      answerAskUser: (
+        requestId: string,
+        answers: import('./types').AskUserAnswer[]
+      ) => Promise<{ accepted: boolean }>;
       onComplete: (callback: (data: { conversationId: string; finalText: string }) => void) => () => void;
       onError: (callback: (data: { conversationId: string; error: string }) => void) => () => void;
     };

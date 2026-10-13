@@ -1,6 +1,7 @@
 import { BrowserManager } from '../browser-engine/browser-manager';
+import * as path from 'path';
 import { getAgentSystemPrompt } from './system-prompt';
-import { parseToolCalls, ParsedToolCall } from './tool-parser';
+import { parseToolCalls, looksLikeToolCall, TOOL_FORMAT_FALLBACK, ParsedToolCall } from './tool-parser';
 import { runCommand } from './tools/run-command';
 import { viewFile, writeToFile, replaceFileContent, searchFiles, listDirectory } from './tools/file-tools';
 import { searchWeb } from './tools/search-tools';
@@ -8,12 +9,29 @@ import { httpGet } from './tools/net-tools';
 import { runBackgroundCommand, checkBackgroundTask } from './tools/task-runner';
 import { screenCapture, simulateInput } from './tools/desktop-tools';
 import { readMemory, writeMemory } from './tools/memory-tools';
+import {
+  create3dModel,
+  render3dModel,
+  preview3dModel,
+  edit3dModel,
+  export3dModel
+} from './tools/model3d-tools';
+
+// Mensagem que mantém a IA trabalhando. O app dirige um site de chat que só responde
+// quando recebe uma mensagem; enquanto a IA não chamar stop, enviamos este nudge.
+const CONTINUE_NUDGE =
+  'Continue working on the user\u2019s request. You are still running and this platform only replies when it gets a message, ' +
+  'so the app keeps prompting you to make progress.\n' +
+  '- If there is ANY remaining work, take the next step now (a tool call or real progress). Do not stop early.\n' +
+  '- If and ONLY if the task is fully complete and your final answer to the user is ready, emit exactly this to close the run:\n' +
+  '<tool_call name="stop">\n{}\n</tool_call>';
 
 export interface AgentEventCallbacks {
   onToken: (token: string, fullText: string) => void;
   onThinking: (thinkingText: string) => void;
   onToolCall: (toolCall: { id: string; name: string; displayName: string; parameters: any; status: 'running' }) => void;
   onToolResult: (toolResult: { id: string; name: string; output: string; status: 'completed' | 'failed'; durationMs: number }) => void;
+  onAskUser?: (requestId: string, parameters: any) => Promise<string>;
   onComplete: (finalText: string) => void;
   onError: (error: string) => void;
 }
@@ -42,8 +60,10 @@ export class AgentOrchestrator {
       const systemPrompt = getAgentSystemPrompt(cwd, hasProject);
       let currentInput = `${systemPrompt}\n\n[USER REQUEST]:\n${userPrompt}`;
       let iteration = 0;
-      const maxIterations = 8;
+      const maxIterations = 12;
       let finalAccumulatedText = '';
+      let reformattedOnce = false;
+      let cappedWithWorkPending = false;
 
       while (iteration < maxIterations && !this.isCancelled) {
         iteration++;
@@ -63,9 +83,31 @@ export class AgentOrchestrator {
         // Verifica se o modelo chamou ferramentas
         const toolCalls = parseToolCalls(responseText);
 
-        if (toolCalls.length === 0 || mode === 'fast') {
-          // Nenhuma ferramenta chamada ou modo rápido — fim da execução
+        // A IA encerrou explicitamente: o texto desta resposta é a resposta final.
+        if (toolCalls.some((t) => t.name === 'stop')) {
           break;
+        }
+
+        if (toolCalls.length === 0 || mode === 'fast') {
+          // Fallback: marcação de ferramenta que nenhum parser reconhece (formato novo do
+          // provedor). Pede reformatação uma vez em vez de parar e mostrar o protocolo cru.
+          if (toolCalls.length === 0 && !reformattedOnce && looksLikeToolCall(responseText)) {
+            reformattedOnce = true;
+            currentInput = TOOL_FORMAT_FALLBACK;
+            continue;
+          }
+          // Modo rápido: uma tacada só e termina.
+          if (mode === 'fast') {
+            break;
+          }
+          // Nos modos agent/planning o app mantém a IA trabalhando: enquanto ela não chamar
+          // stop, envia um nudge de "continue" (o site de chat só responde quando recebe mensagem).
+          if (iteration >= maxIterations) {
+            cappedWithWorkPending = true;
+            break;
+          }
+          currentInput = CONTINUE_NUDGE;
+          continue;
         }
 
         // Executa ferramentas no sistema operacional Linux
@@ -88,7 +130,7 @@ export class AgentOrchestrator {
           let toolStatus: 'completed' | 'failed' = 'completed';
 
           try {
-            toolOutput = await this.executeTool(tool, cwd);
+            toolOutput = await this.executeTool(tool, cwd, toolId, callbacks, hasProject);
           } catch (err: any) {
             toolStatus = 'failed';
             toolOutput = `Error executing tool: ${err.message}`;
@@ -112,7 +154,18 @@ export class AgentOrchestrator {
         // Prepara feedback para a próxima iteração do agente
         currentInput = `Here are the execution results of your tool calls on the local Linux system:\n\n` +
           toolResultsPayload.join('\n\n') +
-          `\n\nPlease evaluate the results and continue with the next steps or provide your final response to the user.`;
+          `\n\nEvaluate the results and keep working toward the user's request. This platform only replies when it receives a message, so the app will keep prompting you until you end the run.` +
+          `\n- If any work remains, take the next step now.` +
+          `\n- When the task is FULLY complete and your final answer is ready, emit exactly this to stop:\n` +
+          `<tool_call name="stop">\n{}\n</tool_call>`;
+
+        if (iteration >= maxIterations) cappedWithWorkPending = true;
+      }
+
+      if (cappedWithWorkPending) {
+        finalAccumulatedText +=
+          '\n\n⚠️ Parei no limite de 12 passos desta tarefa com uma ferramenta ainda pendente. ' +
+          'Responda "continue" para eu retomar exatamente de onde parei.';
       }
 
       callbacks.onComplete(finalAccumulatedText);
@@ -126,10 +179,28 @@ export class AgentOrchestrator {
     this.browserManager.stop(provider);
   }
 
-  private async executeTool(tool: ParsedToolCall, defaultCwd: string): Promise<string> {
+  private async executeTool(
+    tool: ParsedToolCall,
+    defaultCwd: string,
+    requestId: string,
+    callbacks: AgentEventCallbacks,
+    hasProject = false
+  ): Promise<string> {
     const params = tool.parameters || {};
+    const requireProject = () => {
+      if (!hasProject) {
+        throw new Error('ferramentas de modelo 3D gravam arquivos; peça ao usuário para abrir um projeto (Novo Projeto) e reinicie a conversa nele');
+      }
+    };
+    // Caminhos relativos do modelo são relativos à conversa, não ao cwd do app.
+    const abs = (p?: string) => (p && !path.isAbsolute(p) ? path.resolve(defaultCwd, p) : p || '');
 
     switch (tool.name) {
+      case 'ask_user': {
+        if (!callbacks.onAskUser) throw new Error('ask_user exige uma interface conectada ao usuário');
+        return await callbacks.onAskUser(requestId, params);
+      }
+
       case 'run_command': {
         const cmd = params.command || '';
         const runCwd = params.cwd || defaultCwd;
@@ -141,20 +212,20 @@ export class AgentOrchestrator {
       }
 
       case 'view_file': {
-        const p = params.path || '';
+        const p = abs(params.path);
         const res = viewFile(p, params.startLine, params.endLine);
         return `File Path: ${p}\nTotal Lines: ${res.totalLines}\nLines ${res.startLine}-${res.endLine}:\n${res.content}`;
       }
 
       case 'write_to_file': {
-        const p = params.path || '';
+        const p = abs(params.path);
         const content = params.content || '';
         const res = writeToFile(p, content, params.overwrite ?? true);
         return `Successfully wrote ${res.bytesWritten} bytes to ${res.path}`;
       }
 
       case 'replace_file_content': {
-        const p = params.path || '';
+        const p = abs(params.path);
         const res = replaceFileContent(p, params.targetContent, params.replacementContent);
         return `Successfully replaced content in ${p} (${res.replacementsCount} replacement made)`;
       }
@@ -217,6 +288,32 @@ export class AgentOrchestrator {
         });
       }
 
+      case 'create_3d_model': {
+        requireProject();
+        const res = create3dModel(defaultCwd, params.name, params.code, params.overwrite ?? false);
+        return `Modelo .scad criado em ${res.path} (${res.bytesWritten} bytes). Rode render_3d_model e preview_3d_model para conferir.`;
+      }
+
+      case 'render_3d_model': {
+        requireProject();
+        return await render3dModel(defaultCwd, params.path);
+      }
+
+      case 'preview_3d_model': {
+        requireProject();
+        return await preview3dModel(defaultCwd, params.path);
+      }
+
+      case 'edit_3d_model': {
+        requireProject();
+        return edit3dModel(defaultCwd, params.path, params.targetContent, params.replacementContent);
+      }
+
+      case 'export_3d_model': {
+        requireProject();
+        return await export3dModel(defaultCwd, params.path, params.format);
+      }
+
       default:
         throw new Error(`Unsupported tool: ${tool.name}`);
     }
@@ -224,6 +321,8 @@ export class AgentOrchestrator {
 
   private getDisplayName(name: string): string {
     switch (name) {
+      case 'ask_user':
+        return 'Perguntas para você';
       case 'run_command':
         return 'Terminal Bash';
       case 'view_file':
@@ -250,6 +349,16 @@ export class AgentOrchestrator {
         return 'Simulação de Teclado/Mouse';
       case 'project_memory':
         return 'Memória do Projeto';
+      case 'create_3d_model':
+        return 'Criar Modelo 3D';
+      case 'render_3d_model':
+        return 'Renderizar Modelo 3D';
+      case 'preview_3d_model':
+        return 'Pré-visualizar 3D';
+      case 'edit_3d_model':
+        return 'Editar Modelo 3D';
+      case 'export_3d_model':
+        return 'Exportar Modelo 3D';
       default:
         return name;
     }

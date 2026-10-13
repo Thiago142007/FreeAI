@@ -335,7 +335,7 @@ export const ChatCanvas: React.FC = () => {
       >
         {messages.length === 0 && (activeConversation?.totalMessages ?? 0) === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center max-w-lg mx-auto py-12 select-none">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-ag-accent/20 to-ag-indigo/20 border border-ag-accent/30 flex items-center justify-center mb-4 shadow-glow-blue">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-ag-accent/20 to-ag-indigo/20 border border-ag-accent/30 flex items-center justify-center mb-4 shadow-glow">
               <Bot className="w-6 h-6 text-ag-accent" />
             </div>
             <h2 className="text-xl font-bold text-ag-text tracking-tight mb-2">

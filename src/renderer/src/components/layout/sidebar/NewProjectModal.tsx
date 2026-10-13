@@ -91,7 +91,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ open, onClose 
         <button
           type="button"
           onClick={handlePickFolder}
-          className="w-full flex flex-col items-center justify-center gap-2 py-6 rounded-lg border border-dashed border-ag-border-focus/50 bg-ag-bg hover:bg-ag-bg-hover text-ag-text-muted hover:text-ag-text transition-all duration-200"
+          className="w-full flex flex-col items-center justify-center gap-2 py-6 rounded-lg border border-dashed border-ag-border-light bg-ag-bg hover:bg-ag-bg-hover text-ag-text-muted hover:text-ag-text transition-all duration-200"
         >
           <FolderOpen className="w-6 h-6" />
           <span className="text-xs font-medium">
@@ -116,7 +116,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ open, onClose 
               setNameEdited(true);
             }}
             placeholder="O nome da pasta aparece aqui (editável)"
-            className="w-full px-3 py-2 rounded-lg bg-ag-bg border border-ag-border text-xs text-ag-text placeholder-ag-text-muted focus:outline-none focus:border-ag-border-focus focus:shadow-glow-blue transition-all"
+            className="w-full px-3 py-2 rounded-lg bg-ag-bg border border-ag-border text-xs text-ag-text placeholder-ag-text-muted focus:outline-none focus:border-ag-border-focus focus:shadow-glow transition-all"
           />
         </div>
 
@@ -132,7 +132,7 @@ export const NewProjectModal: React.FC<NewProjectModalProps> = ({ open, onClose 
           <button
             onClick={handleCreate}
             disabled={!folderPath || !name.trim() || busy}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-ag-accent hover:bg-ag-accent-hover disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-medium shadow-glow-sm transition-all active:scale-[0.98]"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-ag-accent hover:bg-ag-accent-hover disabled:opacity-40 disabled:cursor-not-allowed text-ag-bg text-xs font-medium shadow-glow-sm transition-all active:scale-[0.98]"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>{busy ? 'Criando...' : 'Novo Projeto'}</span>

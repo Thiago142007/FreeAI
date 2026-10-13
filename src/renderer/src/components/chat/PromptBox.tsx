@@ -295,7 +295,7 @@ export const PromptBox: React.FC<PromptBoxProps> = ({
       <div
         className={`w-full rounded-xl bg-ag-bg-card border transition-all duration-200 ${
           isFocused
-            ? 'border-ag-border-focus shadow-glow-blue'
+            ? 'border-ag-border-focus shadow-glow'
             : 'border-ag-border hover:border-ag-border-light shadow-md'
         }`}
       >
@@ -383,7 +383,7 @@ export const PromptBox: React.FC<PromptBoxProps> = ({
                 disabled={!content.trim()}
                 className={`w-7 h-7 rounded-full flex items-center justify-center transition-all duration-200 ${
                   content.trim()
-                    ? 'bg-ag-accent hover:bg-ag-accent-hover text-white shadow-glow-sm cursor-pointer'
+                    ? 'bg-ag-accent hover:bg-ag-accent-hover text-ag-bg shadow-glow-sm cursor-pointer'
                     : 'bg-ag-bg-active text-ag-text-muted cursor-not-allowed opacity-60'
                 }`}
                 title="Enviar mensagem (Enter)"

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Terminal,
   FileText,
@@ -8,9 +8,12 @@ import {
   Globe,
   Wrench,
   ChevronDown,
+  MessageSquareText,
   ChevronUp
 } from 'lucide-react';
 import { ToolCall } from '../../types';
+import { AskUserCard } from './AskUserCard';
+import { useAskStore } from '../../store/ask-store';
 
 interface ToolCallCardProps {
   toolCall: ToolCall;
@@ -18,6 +21,9 @@ interface ToolCallCardProps {
 
 const getToolIcon = (name: string) => {
   const normalized = name.toLowerCase();
+  if (normalized.includes('ask_user')) {
+    return MessageSquareText;
+  }
   if (normalized.includes('command') || normalized.includes('terminal') || normalized.includes('bash')) {
     return Terminal;
   }
@@ -106,6 +112,18 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({ toolCall }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'input' | 'output'>('output');
 
+  const hasPendingAsk = useAskStore((s) => !!s.pending[toolCall.id]);
+  const hasAnsweredAsk = useAskStore((s) => !!s.submitted[toolCall.id]);
+  const showAsk = toolCall.name === 'ask_user' && (hasPendingAsk || hasAnsweredAsk);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  // Abre e rola até as perguntas: a execução fica bloqueada aguardando o usuário.
+  useEffect(() => {
+    if (!showAsk) return;
+    setIsOpen(true);
+    cardRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [showAsk]);
+
   const Icon = getToolIcon(toolCall.name);
 
   const durationFormatted =
@@ -116,7 +134,7 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({ toolCall }) => {
       : null;
 
   return (
-    <div className="w-full my-2.5 rounded-lg border border-ag-border bg-ag-bg-card overflow-hidden text-xs">
+    <div ref={cardRef} className="w-full my-2.5 rounded-lg border border-ag-border bg-ag-bg-card overflow-hidden text-xs">
       {/* Header row */}
       <button
         type="button"
@@ -170,6 +188,7 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({ toolCall }) => {
       {/* Body */}
       {isOpen && (
         <div className="border-t border-ag-border bg-ag-bg animate-fade-in">
+          {showAsk && <AskUserCard requestId={toolCall.id} />}
           {/* Tabs */}
           <div className="flex items-center gap-1 px-3 pt-2 border-b border-ag-border/70 bg-ag-bg-secondary">
             <button

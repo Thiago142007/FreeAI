@@ -101,6 +101,14 @@ export const STATIC_PROVIDERS: ProviderInfo[] = [
     icon: 'Flower2',
     color: '#f472b6',
     capabilities: [{ id: 'image_gen', label: 'Gerar imagem', experimental: true }]
+  },
+  {
+    id: 'useai',
+    name: 'Use AI',
+    models: [],
+    status: 'disconnected',
+    icon: 'Layers',
+    color: '#d4d4d8'
   }
 ];
 

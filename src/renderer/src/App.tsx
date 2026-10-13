@@ -6,6 +6,7 @@ import { useKeybindings } from './hooks/useKeybindings';
 import { useChatStore } from './store/chat-store';
 import { useSettingsStore } from './store/settings-store';
 import { useEditorStore } from './store/editor-store';
+import { useAskStore } from './store/ask-store';
 import { AIProvider } from './types';
 
 export const App: React.FC = () => {
@@ -14,6 +15,8 @@ export const App: React.FC = () => {
   const setProviderStatus = useSettingsStore((state) => state.setProviderStatus);
   const markFeatureLimited = useSettingsStore((state) => state.markFeatureLimited);
   const setProviderBusy = useSettingsStore((state) => state.setProviderBusy);
+  const registerAsk = useAskStore((state) => state.registerAsk);
+  const forgetAsk = useAskStore((state) => state.forgetAsk);
 
   // Marca/desmarca provedores "em uso" (um provedor só responde uma conversa por vez)
   useEffect(() => {
@@ -22,6 +25,24 @@ export const App: React.FC = () => {
       setProviderBusy(provider, busy ? { conversationId, modelId } : null);
     });
   }, [setProviderBusy]);
+
+  // Perguntas da tool ask_user: registra o pedido pendente e limpa se a corrida terminar sem resposta
+  useEffect(() => {
+    if (!window.freeai) return;
+
+    const unsubAsk = window.freeai.onAskUser(({ conversationId, requestId, provider, questions }) => {
+      registerAsk(requestId, { conversationId, provider, questions });
+    });
+
+    const unsubResult = window.freeai.onToolResult(({ toolResult }) => {
+      if (toolResult?.name === 'ask_user') forgetAsk(toolResult.id);
+    });
+
+    return () => {
+      unsubAsk();
+      unsubResult();
+    };
+  }, [registerAsk, forgetAsk]);
 
   const openedFilePath = useEditorStore((state) => state.opened.path);
 

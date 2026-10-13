@@ -45,6 +45,7 @@ export const AuxiliaryPane: React.FC = () => {
     { id: 'qwen', name: 'Qwen', url: 'https://chat.qwen.ai', status: providerStatus.qwen },
     { id: 'meta', name: 'Meta AI', url: 'https://www.meta.ai', status: providerStatus.meta },
     { id: 'dola', name: 'Dola AI', url: 'https://www.dola.com/chat', status: providerStatus.dola },
+    { id: 'useai', name: 'Use AI', url: 'https://use.ai', status: providerStatus.useai },
   ];
 
   return (

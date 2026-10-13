@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Zap, Sparkles, MessageCircle, Bot, Cpu, Swords, Cloud, Infinity as InfinityIcon, Flower2, Loader2 } from 'lucide-react';
+import { ChevronDown, Zap, Sparkles, MessageCircle, Bot, Cpu, Swords, Cloud, Infinity as InfinityIcon, Flower2, Layers, Loader2 } from 'lucide-react';
 import { AIProvider, ConnectionStatus } from '../../types';
 import { STATIC_PROVIDERS } from '../../provider-meta';
 import { useSettingsStore } from '../../store/settings-store';
@@ -20,6 +20,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   Cloud,
   Infinity: InfinityIcon,
   Flower2,
+  Layers,
 };
 
 const SUBTITLES: Record<string, string> = {
@@ -32,6 +33,7 @@ const SUBTITLES: Record<string, string> = {
   qwen: 'Qwen3 via chat.qwen.ai',
   meta: 'Instantané / Réflexion',
   dola: 'Experimental',
+  useai: 'Use AI · Instant',
 };
 
 const PROVIDER_OPTIONS: { id: AIProvider; name: string; subtitle: string; icon: React.ComponentType<{ className?: string }> }[] =

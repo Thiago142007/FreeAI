@@ -195,14 +195,14 @@ export const Sidebar: React.FC = () => {
             {/* New Conversation Button */}
             <button
               onClick={handleCreateNew}
-              className="w-full flex items-center justify-between py-2 px-3 rounded-lg bg-ag-accent hover:bg-ag-accent-hover text-white text-xs font-medium shadow-glow-sm transition-all duration-200 active:scale-[0.98]"
+              className="w-full flex items-center justify-between py-2 px-3 rounded-lg bg-ag-accent hover:bg-ag-accent-hover text-ag-bg text-xs font-medium shadow-glow-sm transition-all duration-200 active:scale-[0.98]"
               title="Nova Conversa (Ctrl+N)"
             >
               <div className="flex items-center gap-2">
                 <Plus className="w-4 h-4" />
                 <span>Nova Conversa</span>
               </div>
-              <kbd className="text-[10px] font-mono bg-white/20 px-1.5 py-0.5 rounded text-white/90">Ctrl+N</kbd>
+              <kbd className="text-[10px] font-mono bg-ag-bg/15 px-1.5 py-0.5 rounded text-ag-bg/80">Ctrl+N</kbd>
             </button>
 
             {/* New Project Button */}
@@ -225,7 +225,7 @@ export const Sidebar: React.FC = () => {
                 placeholder="Search conversations..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-ag-bg border border-ag-border text-xs text-ag-text placeholder-ag-text-muted focus:outline-none focus:border-ag-border-focus focus:shadow-glow-blue transition-all duration-200"
+                className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-ag-bg border border-ag-border text-xs text-ag-text placeholder-ag-text-muted focus:outline-none focus:border-ag-border-focus focus:shadow-glow transition-all duration-200"
               />
             </div>
 

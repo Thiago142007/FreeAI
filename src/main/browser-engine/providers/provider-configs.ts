@@ -252,6 +252,33 @@ export const DOLA_CONFIG: WebProviderConfig = {
   experimental: true,
 };
 
+export const USEAI_CONFIG: WebProviderConfig = {
+  id: 'useai',
+  name: 'Use AI',
+  chatUrl: 'https://use.ai/',
+  editorSel: 'textarea',
+  editorKind: 'textarea',
+  sendSel: 'button[aria-label="Send message"],button[aria-label="Send prompt"]',
+  // Medido na página real: deslogado tem data-testid="guest-shell-textarea" no composer e
+  // "guest-menu-*" no topo; enviar nesse estado abre ?authmodal=true sem gerar resposta.
+  readyExpr: `!!document.querySelector('textarea') && !document.querySelector('[data-testid^="guest-"]')`,
+  generatingExpr: `(() => {
+    return [...document.querySelectorAll('button')].some(b => b.offsetParent !== null
+      && /stop|cancel|parar/i.test(b.getAttribute('aria-label') || ''));
+  })()`,
+  readExpr: GENERIC_READ,
+  loginBlockExpr: `(() => {
+    if (document.querySelector('[data-testid^="guest-"]')) return true;
+    if (/authmodal=true/.test(location.href)) return true;
+    const d = [...document.querySelectorAll('[role="dialog"]')].find(x => x.getBoundingClientRect().width > 40);
+    return !!d && /sign up or log in|log in|sign in|entrar/i.test(d.innerText || '');
+  })()`,
+  errorScanExpr: ERROR_SCAN,
+  usageLimitRe: 'rate.?limit|too many requests|daily|usage limit|quota|upgrade|subscribe',
+  busyRe: 'something went wrong|try again later|failed to',
+  experimental: true,
+};
+
 export const WEB_PROVIDER_CONFIGS: Record<string, WebProviderConfig> = {
   kimi: KIMI_CONFIG,
   glm: GLM_CONFIG,
@@ -259,6 +286,7 @@ export const WEB_PROVIDER_CONFIGS: Record<string, WebProviderConfig> = {
   qwen: QWEN_CONFIG,
   meta: META_CONFIG,
   dola: DOLA_CONFIG,
+  useai: USEAI_CONFIG,
 };
 
 // Meta dados espelhados no renderer ficam em src/renderer/src/provider-meta.ts

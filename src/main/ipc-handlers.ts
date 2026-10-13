@@ -15,6 +15,7 @@ import {
   getMessageWindow
 } from './storage/store';
 import { listDir, readFileForEditor, writeFileFromEditor } from './storage/fs';
+import { requestAnswers, submitAnswers as submitAskUserAnswers, cancelByProvider as cancelAskUserByProvider, AskUserAnswer } from './agent/tools/ask-user';
 
 function isUsageLimitError(provider: string, error: string): boolean {
   if (error.includes('LIMITE_ATINGIDO')) return true;
@@ -178,6 +179,13 @@ export function registerIpcHandlers(
               toolResult,
             });
           },
+          onAskUser: (requestId, parameters) =>
+            requestAnswers(requestId, payload.provider, parameters, (data) => {
+              mainWindow.webContents.send('agent:on_ask_user', {
+                conversationId: payload.conversationId,
+                ...data,
+              });
+            }),
           onComplete: (finalText) => {
             emitBusy(false);
             // Uma resposta real do provedor confirma a sessão salva
@@ -219,8 +227,17 @@ export function registerIpcHandlers(
 
   // Stop generation
   ipcMain.on('agent:stop_generation', (_event, provider: 'deepseek' | 'gemini' | 'chatgpt') => {
+    cancelAskUserByProvider(provider);
     orchestrator.stop(provider);
   });
+
+  // Respostas do usuário à tool ask_user (resolve a promessa pendente do agente)
+  ipcMain.handle(
+    'agent:answer_ask_user',
+    (_event, payload: { requestId: string; answers: AskUserAnswer[] }) => ({
+      accepted: submitAskUserAnswers(payload.requestId, payload.answers || [])
+    })
+  );
 
   // Open provider login window
   ipcMain.handle('auth:open_login', async (_event, provider: 'deepseek' | 'gemini' | 'chatgpt') => {

@@ -82,7 +82,7 @@ export const ScheduledTasksView: React.FC = () => {
       {/* Header action */}
       <button
         onClick={() => setIsAdding(!isAdding)}
-        className="w-full flex items-center justify-center gap-2 py-2 px-3 mb-3 rounded-lg bg-ag-accent hover:bg-ag-accent-hover text-white font-medium shadow-glow-sm transition-all duration-200 active:scale-[0.98]"
+        className="w-full flex items-center justify-center gap-2 py-2 px-3 mb-3 rounded-lg bg-ag-accent hover:bg-ag-accent-hover text-ag-bg font-medium shadow-glow-sm transition-all duration-200 active:scale-[0.98]"
       >
         <Plus className="w-3.5 h-3.5" />
         <span>{isAdding ? 'Cancelar Agendamento' : 'Novo Agendamento (/schedule)'}</span>

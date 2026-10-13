@@ -17,6 +17,22 @@ import { MessageItem } from '../../chat/MessageItem';
 import { PromptBox } from '../../chat/PromptBox';
 import { v4 as uuidv4 } from 'uuid';
 
+// oneDark pinta #282c34 (azulado); o app é grafite neutro.
+const neutralSurface = EditorView.theme(
+  {
+    '&': { backgroundColor: '#1b1b1b' },
+    '.cm-gutters': { backgroundColor: '#161616', borderRight: '1px solid #292929' },
+    '.cm-activeLine': { backgroundColor: 'rgba(255, 255, 255, 0.05)' },
+    '.cm-activeLineGutter': { backgroundColor: '#1f1f1f' },
+    '.cm-content': { caretColor: '#e5e5e5' },
+    '.cm-cursor': { borderLeftColor: '#e5e5e5' },
+    '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': {
+      backgroundColor: 'rgba(255, 255, 255, 0.22) !important'
+    }
+  },
+  { dark: true }
+);
+
 function langExtension(path: string) {
   const ext = path.split('.').pop()?.toLowerCase() || '';
   switch (ext) {
@@ -94,6 +110,7 @@ export const FileEditorView: React.FC = () => {
         extensions: [
           basicSetup,
           oneDark,
+          neutralSurface,
           langExtension(opened.path),
           EditorView.lineWrapping,
           keymap.of([

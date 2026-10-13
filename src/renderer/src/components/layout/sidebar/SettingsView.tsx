@@ -31,11 +31,10 @@ export const SettingsView: React.FC = () => {
             <button
               key={item.id}
               onClick={() => setProvider(item.id as any)}
-              className={`p-2 rounded-md border text-left transition-all flex items-center justify-between ${
-                provider === item.id
+              className={`p-2 rounded-md border text-left transition-all flex items-center justify-between ${provider === item.id
                   ? 'bg-ag-bg-active border-ag-accent text-ag-text font-medium'
                   : 'bg-ag-bg border-ag-border text-ag-text-secondary hover:text-ag-text'
-              }`}
+                }`}
             >
               <div>
                 <span className="block text-xs">{item.label}</span>

@@ -33,7 +33,7 @@ export const TitleBar: React.FC = () => {
       {/* Left side: Logo & CWD */}
       <div className="flex items-center space-x-3 overflow-hidden pr-2">
         <div className="flex items-center space-x-1.5 font-bold tracking-tight">
-          <span className="bg-gradient-to-r from-ag-accent via-blue-400 to-ag-indigo bg-clip-text text-transparent text-sm font-extrabold">
+          <span className="bg-gradient-to-r from-ag-text via-ag-text-secondary to-ag-text bg-clip-text text-transparent text-sm font-extrabold">
             FreeAI
           </span>
           <span className="text-[10px] font-semibold text-ag-accent px-1 py-0.5 bg-ag-accent/10 rounded border border-ag-accent/20">

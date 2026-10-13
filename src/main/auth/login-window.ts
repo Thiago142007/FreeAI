@@ -27,7 +27,7 @@ export function openLoginWindow(
     width: 900,
     height: 700,
     title: `FreeAI — Conectar Conta (${provider.toUpperCase()})`,
-    backgroundColor: '#0e1015',
+    backgroundColor: '#0f0f0f',
     webPreferences: {
       session: ses,
       nodeIntegration: false,
@@ -88,6 +88,7 @@ export function openLoginWindow(
 
   let finished = false;
   let uiAuthDetected = false;
+  let stableHits = 0;
 
   const finish = async () => {
     if (finished) return;
@@ -98,16 +99,23 @@ export function openLoginWindow(
   };
 
   // Vigia a sessão; quando o login se completa, a janelinha se encerra sozinha
-  // e o provedor passa a operar apenas em background
+  // e o provedor passa a operar apenas em background.
+  // Exige leituras consecutivas: durante o redirect do OAuth a página fica sem o
+  // bloqueio de login por instantes, e fechar cedo derruba a sessão antes de gravar.
+  const REQUIRED_STABLE_HITS = 3;
   const poll = setInterval(async () => {
     if (win.isDestroyed()) {
       clearInterval(poll);
       return;
     }
     if (await isAuthedPage()) {
+      stableHits++;
+      if (stableHits < REQUIRED_STABLE_HITS) return;
       uiAuthDetected = true;
       clearInterval(poll);
       win.close();
+    } else {
+      stableHits = 0;
     }
   }, 1500);
 

@@ -53,7 +53,7 @@ export const ActivityBar: React.FC = () => {
         >
           {/* Left blue accent bar when active */}
           {isActive && (
-            <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-ag-accent rounded-r shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
+            <span className="absolute left-0 top-1.5 bottom-1.5 w-0.5 bg-ag-accent rounded-r shadow-[0_0_8px_rgba(255,255,255,0.35)]" />
           )}
 
           <IconComponent className="w-5 h-5 transition-transform duration-200 group-hover:scale-105" />

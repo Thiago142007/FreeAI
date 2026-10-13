@@ -115,6 +115,24 @@ contextBridge.exposeInMainWorld('freeai', {
     return () => ipcRenderer.removeListener('agent:on_tool_result', listener);
   },
 
+  onAskUser: (
+    callback: (data: {
+      conversationId: string;
+      requestId: string;
+      provider: string;
+      questions: { id: string; question: string; options: string[] }[];
+    }) => void
+  ) => {
+    const listener = (_e: any, d: any) => callback(d);
+    ipcRenderer.on('agent:on_ask_user', listener);
+    return () => ipcRenderer.removeListener('agent:on_ask_user', listener);
+  },
+
+  answerAskUser: (
+    requestId: string,
+    answers: { question: string; answer: string }[]
+  ) => ipcRenderer.invoke('agent:answer_ask_user', { requestId, answers }),
+
   onComplete: (callback: (data: { conversationId: string; finalText: string }) => void) => {
     const listener = (_e: any, d: any) => callback(d);
     ipcRenderer.on('agent:on_complete', listener);

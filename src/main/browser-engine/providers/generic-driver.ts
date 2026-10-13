@@ -145,6 +145,7 @@ export class GenericDriver {
 
       let lastText = '';
       let lastThinking = '';
+      let stablePolls = 0;
       const startTime = Date.now();
       const maxTimeoutMs = 180000;
       let sawGenerating = false;
@@ -167,15 +168,20 @@ export class GenericDriver {
           if (res.text && res.text !== lastText) {
             const delta = res.text.length > lastText.length ? res.text.substring(lastText.length) : res.text;
             lastText = res.text;
+            stablePolls = 0;
             callbacks.onToken(delta, lastText);
+          } else if (lastText.length > 0) {
+            stablePolls++;
           }
         }
 
         const generating = await this.eval<boolean>(this.config.generatingExpr);
         if (generating) sawGenerating = true;
-        if (!generating && lastText.length > 0 && Date.now() - startTime > 4000 && sawGenerating) break;
+        // O botão de stop pode sumir antes do último trecho chegar: exige texto estável,
+        // senão a resposta volta truncada no meio.
+        if (!generating && lastText.length > 0 && stablePolls >= 3 && Date.now() - startTime > 4000 && sawGenerating) break;
         // alguns sites nunca mostram botão de stop — saímos por texto estável
-        if (!generating && lastText.length > 0 && Date.now() - startTime > 12000 && !sawGenerating) break;
+        if (!generating && lastText.length > 0 && stablePolls >= 3 && Date.now() - startTime > 12000 && !sawGenerating) break;
       }
 
       this.isGenerating = false;

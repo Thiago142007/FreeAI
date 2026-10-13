@@ -109,6 +109,7 @@ export class DeepSeekDriver {
       // 2. Monitora a resposta em streaming
       let lastText = '';
       let lastThinking = '';
+      let stablePolls = 0;
       const startTime = Date.now();
       const maxTimeoutMs = 120000;
 
@@ -118,13 +119,16 @@ export class DeepSeekDriver {
         const stateScript = `
           (() => {
             const thinkingEl = document.querySelector('.ds-think-content');
-            const markdownEls = document.querySelectorAll('.ds-markdown');
-            const lastMarkdown = markdownEls.length > 0 ? markdownEls[markdownEls.length - 1] : null;
+            // A resposta pode vir dividida em vários blocos .ds-markdown: ler apenas o último
+            // devolve um fragmento e a mensagem chega cortada ao usuário.
+            const hosts = [...document.querySelectorAll('.ds-message')].reverse();
+            const host = hosts.find((m) => m.querySelector('.ds-markdown')) || null;
+            const blocks = host ? [...host.querySelectorAll('.ds-markdown')] : [];
             const stopBtn = document.querySelector('.ds-loading') || document.querySelector('.ds-button--primary svg rect');
 
             return {
               thinking: thinkingEl ? thinkingEl.innerText : '',
-              text: lastMarkdown ? lastMarkdown.innerText : '',
+              text: blocks.map((e) => e.innerText).join('\\n'),
               isGenerating: !!stopBtn
             };
           })()
@@ -141,10 +145,15 @@ export class DeepSeekDriver {
             if (result.text && result.text !== lastText) {
               const delta = result.text.substring(lastText.length);
               lastText = result.text;
+              stablePolls = 0;
               callbacks.onToken(delta, lastText);
+            } else if (lastText.length > 0) {
+              stablePolls++;
             }
 
-            if (!result.isGenerating && lastText.length > 0 && Date.now() - startTime > 2500) {
+            // O indicador de geração some antes do último trecho chegar e o DeepSeek faz
+            // pausas reais de ~1s no meio da resposta: exige 8 polls (~2,4s) sem mudança.
+            if (!result.isGenerating && lastText.length > 0 && Date.now() - startTime > 6000 && stablePolls >= 8) {
               break;
             }
           }

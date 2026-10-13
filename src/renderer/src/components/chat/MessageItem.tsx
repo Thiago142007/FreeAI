@@ -9,6 +9,31 @@ interface MessageItemProps {
   message: Message;
 }
 
+// Nunca mostrar o protocolo de chamada de ferramenta ao usuário: remove blocos completos
+// e, se o modelo deixou um bloco aberto (formato desconhecido), corta a partir dele.
+const TOOL_MARKUP_STARTERS = [
+  /<tool_call[\s>]/i,
+  /[<｜|]\s*[|｜]*DSML/i,
+  /\binvoke\s+name\s*=\s*["'][^"']+["']/i,
+  /<(?:function|tool|call)[\s_]*name\s*=/i,
+  /###MCP_TOOL###/i,
+  /<\s*im_start\s*>\s*functions\./i
+];
+
+function stripToolMarkup(text: string): string {
+  let out = text
+    .replace(/<tool_call[\s\S]*?<\/tool_call>/gi, '')
+    .replace(/###MCP_TOOL###[\s\S]*?###END_MCP_TOOL###/gi, '')
+    .replace(/[<｜|][|｜\s]*DSML[\s\S]*?[<｜|]\s*\/?[|｜\s]*DSML[|｜\s]*>\s*(?:invoke|calls|tool_calls)\s*>/gi, '');
+
+  let cut = out.length;
+  for (const re of TOOL_MARKUP_STARTERS) {
+    const m = re.exec(out);
+    if (m && m.index < cut) cut = m.index;
+  }
+  return out.slice(0, cut).trimEnd();
+}
+
 export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
   const isUser = message.role === 'user';
 
@@ -80,7 +105,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
           {/* Main Markdown Content */}
           {message.content && (
             <div className="mt-1 text-ag-text">
-              <MarkdownRenderer content={message.content} />
+              <MarkdownRenderer content={stripToolMarkup(message.content)} />
             </div>
           )}
 

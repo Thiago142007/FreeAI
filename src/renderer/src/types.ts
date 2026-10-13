@@ -8,7 +8,8 @@ export type AIProvider =
   | 'arena'
   | 'qwen'
   | 'meta'
-  | 'dola';
+  | 'dola'
+  | 'useai';
 export type AgentMode = 'agent' | 'planning' | 'fast';
 export type ConnectionStatus = 'connected' | 'connecting' | 'disconnected' | 'auth-required';
 
@@ -48,6 +49,18 @@ export interface ToolCall {
   input: string;
   output?: string;
   durationMs?: number;
+}
+
+// ask_user: a IA pergunta e o usuário responde num wizard inline
+export interface AskUserQuestion {
+  id: string;
+  question: string;
+  options: string[];
+}
+
+export interface AskUserAnswer {
+  question: string;
+  answer: string;
 }
 
 // Project types
