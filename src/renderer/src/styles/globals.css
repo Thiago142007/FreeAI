@@ -1,0 +1,150 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    color-scheme: dark;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    background-color: #0e1015;
+    color: #e4e4e7;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+
+  ::selection {
+    background-color: rgba(59, 130, 246, 0.35);
+    color: #ffffff;
+  }
+
+  /* Custom scrollbar matching Antigravity design */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #0e1015;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #262a36;
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3b82f6;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #262a36 #0e1015;
+  }
+}
+
+@layer components {
+  /* Antigravity Custom Utilities */
+  .ag-glow-border {
+    border-color: #262a36;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .ag-glow-border:focus,
+  .ag-glow-border:focus-within {
+    border-color: #3b82f6;
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.35);
+    outline: none;
+  }
+
+  .ag-card {
+    background-color: #1a1d26;
+    border: 1px solid #262a36;
+    border-radius: 0.5rem;
+  }
+
+  .ag-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.125rem 0.5rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 500;
+    border-radius: 9999px;
+    border: 1px solid #262a36;
+    background-color: #14171f;
+    color: #a1a1aa;
+  }
+}
+
+@layer utilities {
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Syntax highlighting and dark code block overrides */
+  pre,
+  code {
+    font-family: 'DejaVu Sans Mono', 'Liberation Mono', 'Noto Sans Mono', monospace;
+  }
+
+  pre {
+    background-color: #1a1d26 !important;
+    border: 1px solid #262a36;
+    border-radius: 0.5rem;
+    padding: 0.75rem 1rem;
+    overflow-x: auto;
+  }
+
+  code:not(pre code) {
+    background-color: #1a1d26;
+    border: 1px solid #262a36;
+    color: #e4e4e7;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    font-size: 0.875em;
+  }
+
+  /* KaTeX Math overrides for dark backgrounds */
+  .katex-display {
+    padding: 0.5rem 0;
+    margin: 0.5rem 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .katex {
+    color: #e4e4e7;
+  }
+}
+
+/* CodeMirror: o genérico "monospace" quebra nesta máquina (zero glyphs → caret crasha o
+   renderer). Fontes locais nomeadas primeiro. FORA de @layer: Tailwind purgeia classes
+   customizadas de dentro dos layers e "cm-editor" só existe em runtime. */
+.cm-editor,
+.cm-editor .cm-content,
+.cm-editor .cm-content *,
+.cm-editor .cm-line,
+.cm-editor .cm-gutters,
+.cm-editor .cm-scroller,
+.cm-editor .cm-measured-value {
+  font-family: 'DejaVu Sans Mono', 'Liberation Mono', 'Noto Sans Mono', monospace !important;
+}

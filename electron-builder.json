@@ -1,0 +1,28 @@
+{
+  "appId": "com.freeai.app",
+  "productName": "FreeAI",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "dist/**/*",
+    "package.json"
+  ],
+  "linux": {
+    "target": [
+      "deb"
+    ],
+    "maintainer": "FreeAI contributors <maintainers@freeai.invalid>",
+    "category": "Development",
+    "icon": "src/renderer/public/icon.png",
+    "synopsis": "Unofficial desktop client for AI-assisted development",
+    "executableArgs": [
+      "--no-sandbox",
+      "--disable-gpu"
+    ]
+  },
+  "deb": {
+    "packageCategory": "devel",
+    "priority": "optional"
+  }
+}

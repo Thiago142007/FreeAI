@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=FreeAI
+Comment=Unofficial desktop client for AI-assisted development
+Exec=freeai
+Icon=freeai
+Terminal=false
+Type=Application
+Categories=Development;IDE;
+StartupWMClass=freeai
+Keywords=ai;agent;antigravity;deepseek;gemini;chatgpt;
