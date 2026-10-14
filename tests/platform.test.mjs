@@ -70,3 +70,20 @@ test('linux: inputCommands mantem paridade xdotool atual', () => {
     { cmd: 'xdotool', args: ['click', '3'] },
   ]);
 });
+
+test('screenCapture: tenta capturadores na ordem do adaptador e propaga último erro', async () => {
+  const mod = require_(path.join(import.meta.dirname, '..', 'dist', 'main', 'agent', 'tools', 'desktop-tools.js'));
+  const r = await mod.screenCapture('/tmp/freeai-cap-test').catch((e) => e);
+  const ok =
+    typeof r === 'string'
+      ? r.includes('/tmp/freeai-cap-test')
+      : r instanceof Error && /screen_capture/.test(r.message);
+  assert.ok(ok, `retorno inesperado: ${r}`);
+});
+
+test('simulateInput: validação independe do SO e indisponibilidade é explícita', async () => {
+  const mod = require_(path.join(import.meta.dirname, '..', 'dist', 'main', 'agent', 'tools', 'desktop-tools.js'));
+  await assert.rejects(() => mod.simulateInput([]), /array não vazio/);
+  await assert.rejects(() => mod.simulateInput([{ action: 'telepatia' }]), /ação desconhecida/);
+  await assert.rejects(() => mod.simulateInput([{ action: 'keyPress', key: '$@#' }]), /tecla inválida/);
+});

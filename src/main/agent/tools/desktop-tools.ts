@@ -2,10 +2,12 @@ import { execFile } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { getPlatformAdapter, InputAction } from '../../platform';
 
 // screen_capture: equivalente ao screen_capture do ZeroScript, capturando a
-// área de trabalho Linux real (scrot; fallback: ImageMagick import)
+// área de trabalho real do SO do usuário (capturadores escolhidos pelo adaptador)
 export async function screenCapture(dirPath?: string): Promise<string> {
+  const adapter = getPlatformAdapter();
   const dir = dirPath || path.join(os.tmpdir(), 'freeai-captures');
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, `capture-${Date.now()}.png`);
@@ -15,10 +17,22 @@ export async function screenCapture(dirPath?: string): Promise<string> {
       execFile(cmd, args, (err) => (err ? reject(err) : resolve()));
     });
 
-  try {
-    await run('scrot', ['--overwrite', file]);
-  } catch {
-    await run('import', ['-window', 'root', file]);
+  let lastError: unknown;
+  for (const attempt of adapter.screenCaptureAttempts(file)) {
+    try {
+      await run(attempt.cmd, attempt.args);
+      lastError = undefined;
+      break;
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  if (lastError) {
+    const hint =
+      adapter.id === 'darwin'
+        ? ' — autorize Gravação de Tela em Ajustes do Sistema → Privacidade e Segurança'
+        : '';
+    throw new Error(`screen_capture: capturadores de ${adapter.label} falharam: ${String(lastError)}${hint}`);
   }
 
   if (!fs.existsSync(file)) {
@@ -27,19 +41,8 @@ export async function screenCapture(dirPath?: string): Promise<string> {
   return `Captura salva em: ${file}`;
 }
 
-interface InputAction {
-  action: string;
-  key?: string;
-  x?: number;
-  y?: number;
-  button?: string;
-  text?: string;
-  scroll?: string;
-  waitMs?: number;
-}
-
 // simulate_input: user_keyboard_input/user_mouse_input do ZeroScript,
-// traduzidos para xdotool no desktop do usuário
+// despachados para o mecanismo de input do SO pelo adaptador de plataforma
 export async function simulateInput(actions: InputAction[]): Promise<string> {
   if (!Array.isArray(actions) || actions.length === 0) {
     throw new Error('simulate_input: actions deve ser um array não vazio');
@@ -87,29 +90,21 @@ export async function simulateInput(actions: InputAction[]): Promise<string> {
     }
   }
 
-  const buttonCode: Record<string, string> = { left: '1', middle: '2', right: '3' };
+  const adapter = getPlatformAdapter();
 
   for (const a of actions) {
-    let args: string[] | null = null;
-    switch (a.action) {
-      case 'keyPress': args = ['key', a.key!]; break;
-      case 'keyDown': args = ['keydown', a.key!]; break;
-      case 'keyUp': args = ['keyup', a.key!]; break;
-      case 'moveTo': args = ['mousemove', String(a.x), String(a.y)]; break;
-      case 'click': args = ['click', buttonCode[a.button || 'left']]; break;
-      case 'scroll': args = ['click', a.scroll === 'up' ? '4' : '5']; break;
-      case 'type': args = ['type', '--delay', '12', a.text!]; break;
+    if (a.action === 'wait') {
+      await new Promise((r) => setTimeout(r, a.waitMs));
+      continue;
     }
-    if (args) {
+    for (const c of adapter.inputCommands(a)) {
       await new Promise<void>((resolve, reject) => {
-        execFile('xdotool', args!, (err) =>
-          err ? reject(new Error(`simulate_input (xdotool ${args!.join(' ')}): ${err.message}`)) : resolve()
+        execFile(c.cmd, c.args, (err) =>
+          err ? reject(new Error(`simulate_input (${c.cmd} ${c.args.join(' ')}): ${err.message}`)) : resolve()
         );
       });
-    } else if (a.action === 'wait') {
-      await new Promise((r) => setTimeout(r, a.waitMs));
     }
   }
 
-  return `OK: ${actions.length} ações executadas via xdotool`;
+  return `OK: ${actions.length} ações executadas em ${adapter.label}`;
 }
