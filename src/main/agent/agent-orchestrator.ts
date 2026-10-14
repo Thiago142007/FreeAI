@@ -15,6 +15,7 @@ import { searchWeb } from './tools/search-tools';
 import { httpGet } from './tools/net-tools';
 import { runBackgroundCommand, checkBackgroundTask } from './tools/task-runner';
 import { screenCapture, simulateInput } from './tools/desktop-tools';
+import { getPlatformAdapter } from '../platform';
 import { readMemory, writeMemory } from './tools/memory-tools';
 import {
   create3dModel,
@@ -336,7 +337,7 @@ export class AgentOrchestrator {
       case 'ask_user':
         return 'Perguntas para você';
       case 'run_command':
-        return 'Terminal Bash';
+        return `Terminal ${getPlatformAdapter().shellName}`;
       case 'view_file':
         return 'Leitura de Arquivo';
       case 'write_to_file':

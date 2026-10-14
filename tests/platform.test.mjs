@@ -87,3 +87,36 @@ test('simulateInput: validação independe do SO e indisponibilidade é explíci
   await assert.rejects(() => mod.simulateInput([{ action: 'telepatia' }]), /ação desconhecida/);
   await assert.rejects(() => mod.simulateInput([{ action: 'keyPress', key: '$@#' }]), /tecla inválida/);
 });
+
+test('system prompt descreve o SO real, nunca texto fixo de Linux', () => {
+  const { getAgentSystemPrompt } = require_(
+    path.join(import.meta.dirname, '..', 'dist', 'main', 'SystemPrompts', 'agent-system-prompt.js')
+  );
+  const original = process.platform;
+  try {
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
+    const pWin = getAgentSystemPrompt('/tmp', true);
+    assert.ok(pWin.includes('Operating System: Windows'), 'cabecalho de SO Windows');
+    assert.ok(pWin.includes('PowerShell command on the local Windows system'), 'run_command Windows');
+    assert.ok(!/Linux/.test(pWin), 'Linux hardcoded no prompt de Windows');
+    Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true });
+    const pMac = getAgentSystemPrompt('/tmp', true);
+    assert.ok(pMac.includes('zsh command on the local macOS system'), 'run_command macOS');
+    assert.ok(pMac.includes('AppleScript'), 'simulate_input macOS menciona AppleScript');
+  } finally {
+    Object.defineProperty(process, 'platform', { value: original, configurable: true });
+  }
+});
+
+test('tool result feedback usa o SO do adaptador', () => {
+  const { buildToolResultFeedback } = require_(
+    path.join(import.meta.dirname, '..', 'dist', 'main', 'SystemPrompts', 'tool-result-feedback.js')
+  );
+  const original = process.platform;
+  try {
+    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
+    assert.ok(buildToolResultFeedback(['x']).includes('local Windows system'));
+  } finally {
+    Object.defineProperty(process, 'platform', { value: original, configurable: true });
+  }
+});

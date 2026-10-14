@@ -1,3 +1,5 @@
+import { getPlatformAdapter } from '../platform';
+
 const READONLY_NOTICE = `### PROJECT MODE: DISABLED (FREE CHAT)
 This chat is NOT attached to a project. You are STRICTLY FORBIDDEN from creating, modifying, deleting or moving ANY file on the user's system in this chat.
 - Never use run_command with mutating commands (rm, mv, cp, mkdir, touch, tee, chmod, chown, installs, output redirects ">", ">>", "&&" write chains, etc.). Only read-only commands such as ls, cat, find, grep, head, tail, wc, df, du, stat.
@@ -6,6 +8,13 @@ This chat is NOT attached to a project. You are STRICTLY FORBIDDEN from creating
 - If the user asks you to create or change something on disk, explain that they must create a project (Novo Projeto button) and start a chat inside it, then stop.`;
 
 function toolList(withProject: boolean): string {
+  const adapter = getPlatformAdapter();
+  const inputDesc =
+    adapter.id === 'win32'
+      ? `   - Description: UNAVAILABLE on Windows — every call returns an error; use run_command with PowerShell instead.`
+      : adapter.id === 'darwin'
+      ? `   - Description: Send keyboard actions to the user's desktop via AppleScript (keyPress and type only; pointer actions return UNAVAILABLE). Use ONLY when the task truly requires GUI interaction, and announce it to the user first.`
+      : `   - Description: Send real keyboard/mouse actions to the user's desktop via xdotool. Use ONLY when the task truly requires GUI interaction, and announce it to the user first.`;
   const projectTools = withProject
     ? `
 3. write_to_file:
@@ -48,7 +57,7 @@ function toolList(withProject: boolean): string {
 
   return `### AVAILABLE TOOLS:
 1. run_command:
-   - Description: Execute a bash command on the local Linux system.${withProject ? '' : ' In this free chat only READ-ONLY commands are allowed (see PROJECT MODE notice below).'}
+   - Description: Execute a ${adapter.shellName} command on the local ${adapter.label} system.${withProject ? '' : ' In this free chat only READ-ONLY commands are allowed (see PROJECT MODE notice below).'}
    - Parameters: {"command": "string", "cwd": "optional string"}
 
 2. view_file:
@@ -72,7 +81,7 @@ ${projectTools}
    - Parameters: {"url": "string", "query": optional string, "returnFull": optional boolean, "contextLines": optional number}
 
 9. run_background_command:
-   - Description: Start a long-running bash command in the background WITHOUT blocking. Returns a task id.${withProject ? '' : ' Only read-only background commands are allowed in this free chat.'}
+   - Description: Start a long-running ${adapter.shellName} command in the background WITHOUT blocking. Returns a task id.${withProject ? '' : ' Only read-only background commands are allowed in this free chat.'}
    - Parameters: {"command": "string", "cwd": optional string}
 
 10. check_background_task:
@@ -80,12 +89,12 @@ ${projectTools}
    - Parameters: {"taskId": "string", "waitSeconds": optional number}
 
 11. screen_capture:
-${withProject ? `   - Description: Capture the user's Linux desktop as a PNG file. Returns the saved file path (the user sees it in Files).
+${withProject ? `   - Description: Capture the user's ${adapter.label} desktop as a PNG file. Returns the saved file path (the user sees it in Files).
    - Parameters: {"dirPath": optional string}` : `   - Description: DISABLED in this free chat (it would write a file).
    - Parameters: none accepted`}
 
 12. simulate_input:
-${withProject ? `   - Description: Send real keyboard/mouse actions to the user's desktop via xdotool. Use ONLY when the task truly requires GUI interaction, and announce it to the user first.
+${withProject ? `${inputDesc}
    - Parameters: {"actions": [{"action": "keyPress|keyDown|keyUp|moveTo|click|scroll|type|wait", "key": "for key actions (e.g. Return, a, ctrl)", "x": number, "y": number, "button": "left|right|middle", "text": "for type", "scroll": "up|down", "waitMs": number}]}` : `   - Description: DISABLED in this free chat (it can mutate the user's desktop state).
    - Parameters: none accepted`}
 ${memoryTool}
@@ -100,23 +109,24 @@ ${memoryTool}
 }
 
 export function getAgentSystemPrompt(cwd: string, hasProject = true): string {
-  const identity = `You are an advanced autonomous AI assistant running locally on Linux, inside the FreeAI desktop application.
+  const adapter = getPlatformAdapter();
+  const identity = `You are an advanced autonomous AI assistant running locally on ${adapter.label}, inside the FreeAI desktop application.
 "FreeAI" is only the name of the app you run in — it is NOT your name or your model identity. Never refer to yourself as FreeAI or Antigravity, and when asked which model you are, answer with the model you actually are.`;
 
   const env = hasProject
     ? `${identity}
 Your environment:
-- Operating System: Linux x86_64
+- Operating System: ${adapter.label} ${process.arch}
 - Current Working Directory: ${cwd}
 - This chat belongs to a PROJECT rooted at that directory. You may create and edit files inside it.`
     : `${identity}
 Your environment:
-- Operating System: Linux x86_64
+- Operating System: ${adapter.label} ${process.arch}
 - Current Working Directory: ${cwd}`;
 
   return `${env}
 
-You have direct access to local Linux tools to inspect files, write code, run terminal commands, and perform web searches.
+You have direct access to local ${adapter.label} tools to inspect files, write code, run terminal commands, and perform web searches.
 
 ${toolList(hasProject)}
 
