@@ -39,23 +39,101 @@ const PROJECT_ONLY_TOOLS = new Set([
   'export_3d_model'
 ]);
 
+// Ferramentas que não devem ser re-tentadas automaticamente em caso de falha
+// (geralmente têm side-effects irreversíveis ou o erro é determinístico).
+const NO_RETRY_TOOLS = new Set([
+  'write_to_file',
+  'replace_file_content',
+  'run_command',
+  'run_background_command',
+  'screen_capture',
+  'simulate_input',
+  'create_3d_model',
+  'export_3d_model',
+]);
+
 export interface AgentEventCallbacks {
   onToken: (token: string, fullText: string) => void;
   onThinking: (thinkingText: string) => void;
-  onToolCall: (toolCall: { id: string; name: string; displayName: string; parameters: any; status: 'running' }) => void;
-  onToolResult: (toolResult: { id: string; name: string; output: string; status: 'completed' | 'failed'; durationMs: number }) => void;
+  onToolCall: (toolCall: {
+    id: string;
+    name: string;
+    displayName: string;
+    parameters: any;
+    status: 'running';
+  }) => void;
+  onToolResult: (toolResult: {
+    id: string;
+    name: string;
+    output: string;
+    status: 'completed' | 'failed';
+    durationMs: number;
+  }) => void;
   onAskUser?: (requestId: string, parameters: any) => Promise<string>;
   onComplete: (finalText: string) => void;
   onError: (error: string) => void;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Watch-mode pós-conclusão
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Contexto de uma conversa que ficou com tool calls detectados mas não executados
+ * porque o orchestrator já havia encerrado (por stop ou limite de iterações).
+ * O WatchManager mantém isso ativo e, caso a IA envie mais mensagens no futuro
+ * com tool calls pendentes, os executa automaticamente.
+ */
+export interface PendingWatchEntry {
+  conversationId: string;
+  provider: string;
+  cwd: string;
+  hasProject: boolean;
+  modelId?: string;
+  capabilityId?: string;
+  /** Texto da última resposta que tinha tool calls não executados */
+  pendingResponse: string;
+  callbacks: AgentEventCallbacks;
+  /** Tool calls detectados e ainda não executados */
+  pendingTools: ParsedToolCall[];
+  createdAt: number;
+}
+
+class WatchManager {
+  private watches = new Map<string, PendingWatchEntry>();
+  private static TTL_MS = 30 * 60 * 1000; // 30 minutos
+
+  set(conversationId: string, entry: PendingWatchEntry) {
+    this.watches.set(conversationId, entry);
+    // Limpeza automática após TTL
+    setTimeout(() => this.watches.delete(conversationId), WatchManager.TTL_MS);
+  }
+
+  get(conversationId: string): PendingWatchEntry | undefined {
+    return this.watches.get(conversationId);
+  }
+
+  delete(conversationId: string) {
+    this.watches.delete(conversationId);
+  }
+
+  has(conversationId: string): boolean {
+    return this.watches.has(conversationId);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export class AgentOrchestrator {
   private browserManager: BrowserManager;
   private isCancelled: boolean = false;
+  private watchManager = new WatchManager();
 
   constructor(browserManager: BrowserManager) {
     this.browserManager = browserManager;
   }
+
+  // ───────────────────────────── run() ─────────────────────────────────────
 
   public async run(
     conversationId: string,
@@ -68,20 +146,74 @@ export class AgentOrchestrator {
   ) {
     this.isCancelled = false;
 
+    // Se existe uma entrada de watch pendente para essa conversa e o usuário
+    // mandou "continue" (ou qualquer mensagem), executa os tool calls pendentes
+    // antes de mandar o prompt para a IA.
+    const watch = this.watchManager.get(conversationId);
+    if (watch && watch.pendingTools.length > 0) {
+      this.watchManager.delete(conversationId);
+      await this.executeToolsAndContinue(
+        watch.pendingTools,
+        watch.pendingResponse,
+        conversationId,
+        provider,
+        mode,
+        cwd,
+        callbacks,
+        { ...opts, projectPath: watch.hasProject ? opts.projectPath : undefined }
+      );
+      return;
+    }
+
     try {
       const hasProject = Boolean(opts.projectPath);
       const systemPrompt = getAgentSystemPrompt(cwd, hasProject);
       let currentInput = composeInitialRequest(systemPrompt, userPrompt);
-      let iteration = 0;
-      const maxIterations = 12;
-      let finalAccumulatedText = '';
-      let reformattedOnce = false;
-      let cappedWithWorkPending = false;
 
-      while (iteration < maxIterations && !this.isCancelled) {
-        iteration++;
+      await this.agentLoop(
+        currentInput,
+        conversationId,
+        provider,
+        mode,
+        cwd,
+        callbacks,
+        opts,
+        hasProject
+      );
+    } catch (err: any) {
+      callbacks.onError(err.message || 'Unknown agent execution error');
+    }
+  }
 
-        let responseText = await this.browserManager.sendPrompt(
+  // ───────────────────── agentLoop() ───────────────────────────────────────
+
+  private async agentLoop(
+    initialInput: string,
+    conversationId: string,
+    provider: string,
+    mode: 'agent' | 'planning' | 'fast',
+    cwd: string,
+    callbacks: AgentEventCallbacks,
+    opts: { modelId?: string; capabilityId?: string; projectPath?: string },
+    hasProject: boolean
+  ) {
+    let currentInput = initialInput;
+    let iteration = 0;
+    // Aumentado de 12 → 20 para tarefas mais complexas.
+    const maxIterations = 20;
+    let finalAccumulatedText = '';
+    let reformattedOnce = false;
+    let cappedWithWorkPending = false;
+    // Contador de nudges consecutivos sem progresso real (sem tool calls, sem stop)
+    let nudgesWithoutProgress = 0;
+    const MAX_NUDGES_WITHOUT_PROGRESS = 3;
+
+    while (iteration < maxIterations && !this.isCancelled) {
+      iteration++;
+
+      let responseText: string;
+      try {
+        responseText = await this.browserManager.sendPrompt(
           provider,
           currentInput,
           {
@@ -90,104 +222,201 @@ export class AgentOrchestrator {
           },
           opts
         );
+      } catch (err: any) {
+        // Erro de rede/provider na iteração — repassa como erro de agente
+        throw err;
+      }
 
-        finalAccumulatedText = responseText;
+      finalAccumulatedText = responseText;
 
-        // Verifica se o modelo chamou ferramentas
-        const toolCalls = parseToolCalls(responseText);
+      // Detecta tool calls na resposta
+      const toolCalls = parseToolCalls(responseText);
+      const stopIndex = toolCalls.findIndex((tc) => tc.name === 'stop');
 
-        const stopIndex = toolCalls.findIndex((tool) => tool.name === 'stop');
-        if (stopIndex === 0) {
-          break;
-        }
-        const executableTools = stopIndex === -1 ? toolCalls : toolCalls.slice(0, stopIndex);
+      // "stop" como primeira chamada → encerra imediatamente
+      if (stopIndex === 0) break;
 
-        if (executableTools.length === 0 || mode === 'fast') {
-          // Fallback: marcação de ferramenta que nenhum parser reconhece (formato novo do
-          // provedor). Pede reformatação uma vez em vez de parar e mostrar o protocolo cru.
-          if (toolCalls.length === 0 && !reformattedOnce && looksLikeToolCall(responseText)) {
-            reformattedOnce = true;
-            currentInput = TOOL_FORMAT_FALLBACK;
-            continue;
-          }
-          // Modo rápido: uma tacada só e termina.
-          if (mode === 'fast') {
-            break;
-          }
-          // Nos modos agent/planning o app mantém a IA trabalhando: enquanto ela não chamar
-          // stop, envia um nudge de "continue" (o site de chat só responde quando recebe mensagem).
-          if (iteration >= maxIterations) {
-            cappedWithWorkPending = true;
-            break;
-          }
-          currentInput = CONTINUE_NUDGE;
+      const executableTools = stopIndex === -1 ? toolCalls : toolCalls.slice(0, stopIndex);
+
+      // ── Sem tool calls ──────────────────────────────────────────────────
+      if (executableTools.length === 0) {
+        // Fallback de formato: ferramenta detectada mas não parseada
+        if (toolCalls.length === 0 && !reformattedOnce && looksLikeToolCall(responseText)) {
+          reformattedOnce = true;
+          currentInput = TOOL_FORMAT_FALLBACK;
           continue;
         }
 
-        // Executa ferramentas no sistema operacional Linux
-        const toolResultsPayload: string[] = [];
+        // Modo rápido: resposta única e encerra
+        if (mode === 'fast') break;
 
-        for (const tool of executableTools) {
-          if (this.isCancelled) break;
-
-          const toolId = `tool-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-          callbacks.onToolCall({
-            id: toolId,
-            name: tool.name,
-            displayName: this.getDisplayName(tool.name),
-            parameters: tool.parameters,
-            status: 'running',
-          });
-
-          const startTime = Date.now();
-          let toolOutput = '';
-          let toolStatus: 'completed' | 'failed' = 'completed';
-
-          try {
-            toolOutput = await this.executeTool(tool, cwd, toolId, callbacks, hasProject);
-          } catch (err: any) {
-            toolStatus = 'failed';
-            toolOutput = `Error executing tool: ${err.message}`;
-          }
-
-          const durationMs = Date.now() - startTime;
-
-          callbacks.onToolResult({
-            id: toolId,
-            name: tool.name,
-            output: toolOutput,
-            status: toolStatus,
-            durationMs,
-          });
-
-          toolResultsPayload.push(formatToolResult(tool.name, toolOutput));
+        // Limite de nudges sem progresso: encerra graciosamente
+        nudgesWithoutProgress++;
+        if (nudgesWithoutProgress >= MAX_NUDGES_WITHOUT_PROGRESS || iteration >= maxIterations) {
+          cappedWithWorkPending = nudgesWithoutProgress >= MAX_NUDGES_WITHOUT_PROGRESS;
+          break;
         }
 
-        if (this.isCancelled) break;
-
-        if (stopIndex !== -1) break;
-
-        currentInput = buildToolResultFeedback(toolResultsPayload);
-
-        if (iteration >= maxIterations) cappedWithWorkPending = true;
+        currentInput = CONTINUE_NUDGE;
+        continue;
       }
 
-      if (cappedWithWorkPending) {
-        finalAccumulatedText +=
-          '\n\n⚠️ Parei no limite de 12 passos desta tarefa com uma ferramenta ainda pendente. ' +
-          'Responda "continue" para eu retomar exatamente de onde parei.';
-      }
+      // Há tool calls — resetar contador de nudges
+      nudgesWithoutProgress = 0;
 
-      callbacks.onComplete(finalAccumulatedText);
+      // ── Executa as ferramentas ──────────────────────────────────────────
+      const toolResultsPayload = await this.runToolBatch(
+        executableTools,
+        cwd,
+        callbacks,
+        hasProject
+      );
+
+      if (this.isCancelled) break;
+
+      // "stop" depois de algumas ferramentas → encerra após executá-las
+      if (stopIndex !== -1) break;
+
+      currentInput = buildToolResultFeedback(toolResultsPayload);
+
+      if (iteration >= maxIterations) {
+        cappedWithWorkPending = true;
+        break;
+      }
+    }
+
+    if (cappedWithWorkPending) {
+      finalAccumulatedText +=
+        '\n\n⚠️ Parei no limite de passos desta tarefa. ' +
+        'Responda "continue" para eu retomar exatamente de onde parei.';
+    }
+
+    callbacks.onComplete(finalAccumulatedText);
+  }
+
+  // ───────────────── executeToolsAndContinue() ─────────────────────────────
+  /**
+   * Usado pelo watch-mode: executa tool calls pendentes de uma sessão anterior
+   * e retoma o loop do agente com os resultados.
+   */
+  private async executeToolsAndContinue(
+    pendingTools: ParsedToolCall[],
+    _previousResponse: string,
+    conversationId: string,
+    provider: string,
+    mode: 'agent' | 'planning' | 'fast',
+    cwd: string,
+    callbacks: AgentEventCallbacks,
+    opts: { modelId?: string; capabilityId?: string; projectPath?: string }
+  ) {
+    const hasProject = Boolean(opts.projectPath);
+    try {
+      const toolResultsPayload = await this.runToolBatch(pendingTools, cwd, callbacks, hasProject);
+      if (this.isCancelled) {
+        callbacks.onComplete('');
+        return;
+      }
+      const nextInput = buildToolResultFeedback(toolResultsPayload);
+      await this.agentLoop(nextInput, conversationId, provider, mode, cwd, callbacks, opts, hasProject);
     } catch (err: any) {
       callbacks.onError(err.message || 'Unknown agent execution error');
     }
   }
 
+  // ──────────────────── runToolBatch() ─────────────────────────────────────
+  /**
+   * Executa um lote de ferramentas em série, notificando callbacks a cada passo.
+   * Retorna o array de strings de resultado para feed de volta à IA.
+   * Erros de ferramenta são capturados e transformados em resultado de falha
+   * para que a IA possa se recuperar — EXCETO erros de ferramentas sem retry
+   * que não têm sentido repassar ao modelo.
+   */
+  private async runToolBatch(
+    tools: ParsedToolCall[],
+    cwd: string,
+    callbacks: AgentEventCallbacks,
+    hasProject: boolean
+  ): Promise<string[]> {
+    const results: string[] = [];
+
+    for (const tool of tools) {
+      if (this.isCancelled) break;
+
+      const toolId = `tool-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+
+      callbacks.onToolCall({
+        id: toolId,
+        name: tool.name,
+        displayName: this.getDisplayName(tool.name),
+        parameters: tool.parameters,
+        status: 'running',
+      });
+
+      const startTime = Date.now();
+      let toolOutput = '';
+      let toolStatus: 'completed' | 'failed' = 'completed';
+
+      // Tentativas: 1 para ferramentas sem retry, 2 para as demais
+      const maxAttempts = NO_RETRY_TOOLS.has(tool.name) ? 1 : 2;
+      let lastError = '';
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          toolOutput = await this.executeTool(tool, cwd, toolId, callbacks, hasProject);
+          toolStatus = 'completed';
+          lastError = '';
+          break;
+        } catch (err: any) {
+          lastError = err.message;
+          if (attempt < maxAttempts) {
+            // Pequena espera antes do retry
+            await new Promise((r) => setTimeout(r, 800));
+          }
+        }
+      }
+
+      if (lastError) {
+        toolStatus = 'failed';
+        toolOutput = `Error executing tool: ${lastError}`;
+      }
+
+      const durationMs = Date.now() - startTime;
+
+      callbacks.onToolResult({
+        id: toolId,
+        name: tool.name,
+        output: toolOutput,
+        status: toolStatus,
+        durationMs,
+      });
+
+      results.push(formatToolResult(tool.name, toolOutput));
+    }
+
+    return results;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+
   public stop(provider: string) {
     this.isCancelled = true;
     this.browserManager.stop(provider);
   }
+
+  /**
+   * Registra tool calls detectados mas não executados para o watch-mode.
+   * Chamado externamente (pelo ipc-handler) quando o orchestrator já encerrou
+   * mas a IA emitiu tool calls na última mensagem sem executar.
+   */
+  public registerPendingWatch(entry: PendingWatchEntry) {
+    this.watchManager.set(entry.conversationId, entry);
+  }
+
+  public hasPendingWatch(conversationId: string): boolean {
+    return this.watchManager.has(conversationId);
+  }
+
+  // ─────────────────── executeTool() ───────────────────────────────────────
 
   private async executeTool(
     tool: ParsedToolCall,
@@ -197,20 +426,29 @@ export class AgentOrchestrator {
     hasProject = false
   ): Promise<string> {
     const params = tool.parameters || {};
+
     if (!hasProject && PROJECT_ONLY_TOOLS.has(tool.name)) {
-      throw new Error('Esta ferramenta exige um projeto aberto. Crie um projeto e inicie a conversa nele.');
+      throw new Error(
+        'Esta ferramenta exige um projeto aberto. Crie um projeto e inicie a conversa nele.'
+      );
     }
+
     const requireProject = () => {
       if (!hasProject) {
-        throw new Error('ferramentas de modelo 3D gravam arquivos; peça ao usuário para abrir um projeto (Novo Projeto) e reinicie a conversa nele');
+        throw new Error(
+          'ferramentas de modelo 3D gravam arquivos; peça ao usuário para abrir um projeto (Novo Projeto) e reinicie a conversa nele'
+        );
       }
     };
-    // Caminhos relativos do modelo são relativos à conversa, não ao cwd do app.
-    const abs = (p?: string) => (p && !path.isAbsolute(p) ? path.resolve(defaultCwd, p) : p || '');
+
+    // Caminhos relativos do modelo são relativos ao cwd da conversa
+    const abs = (p?: string) =>
+      p && !path.isAbsolute(p) ? path.resolve(defaultCwd, p) : p || '';
 
     switch (tool.name) {
       case 'ask_user': {
-        if (!callbacks.onAskUser) throw new Error('ask_user exige uma interface conectada ao usuário');
+        if (!callbacks.onAskUser)
+          throw new Error('ask_user exige uma interface conectada ao usuário');
         return await callbacks.onAskUser(requestId, params);
       }
 
@@ -319,7 +557,12 @@ export class AgentOrchestrator {
 
       case 'edit_3d_model': {
         requireProject();
-        return edit3dModel(defaultCwd, params.path, params.targetContent, params.replacementContent);
+        return edit3dModel(
+          defaultCwd,
+          params.path,
+          params.targetContent,
+          params.replacementContent
+        );
       }
 
       case 'export_3d_model': {
@@ -332,48 +575,30 @@ export class AgentOrchestrator {
     }
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+
   private getDisplayName(name: string): string {
-    switch (name) {
-      case 'ask_user':
-        return 'Perguntas para você';
-      case 'run_command':
-        return `Terminal ${getPlatformAdapter().shellName}`;
-      case 'view_file':
-        return 'Leitura de Arquivo';
-      case 'write_to_file':
-        return 'Criação de Arquivo';
-      case 'replace_file_content':
-        return 'Edição Cirúrgica';
-      case 'search_files':
-        return 'Busca no Projeto';
-      case 'list_directory':
-        return 'Listar Diretório';
-      case 'search_web':
-        return 'Pesquisa Web';
-      case 'http_get':
-        return 'Requisição HTTP';
-      case 'run_background_command':
-        return 'Tarefa em Background';
-      case 'check_background_task':
-        return 'Consultar Tarefa';
-      case 'screen_capture':
-        return 'Captura de Tela';
-      case 'simulate_input':
-        return 'Simulação de Teclado/Mouse';
-      case 'project_memory':
-        return 'Memória do Projeto';
-      case 'create_3d_model':
-        return 'Criar Modelo 3D';
-      case 'render_3d_model':
-        return 'Renderizar Modelo 3D';
-      case 'preview_3d_model':
-        return 'Pré-visualizar 3D';
-      case 'edit_3d_model':
-        return 'Editar Modelo 3D';
-      case 'export_3d_model':
-        return 'Exportar Modelo 3D';
-      default:
-        return name;
-    }
+    const map: Record<string, string> = {
+      ask_user: 'Perguntas para você',
+      run_command: `Terminal ${getPlatformAdapter().shellName}`,
+      view_file: 'Leitura de Arquivo',
+      write_to_file: 'Criação de Arquivo',
+      replace_file_content: 'Edição Cirúrgica',
+      search_files: 'Busca no Projeto',
+      list_directory: 'Listar Diretório',
+      search_web: 'Pesquisa Web',
+      http_get: 'Requisição HTTP',
+      run_background_command: 'Tarefa em Background',
+      check_background_task: 'Consultar Tarefa',
+      screen_capture: 'Captura de Tela',
+      simulate_input: 'Simulação de Teclado/Mouse',
+      project_memory: 'Memória do Projeto',
+      create_3d_model: 'Criar Modelo 3D',
+      render_3d_model: 'Renderizar Modelo 3D',
+      preview_3d_model: 'Pré-visualizar 3D',
+      edit_3d_model: 'Editar Modelo 3D',
+      export_3d_model: 'Exportar Modelo 3D',
+    };
+    return map[name] ?? name;
   }
 }

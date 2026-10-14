@@ -132,20 +132,43 @@ ${toolList(hasProject)}
 
 ${hasProject ? '' : READONLY_NOTICE}
 
-### TOOL CALL FORMAT:
-To execute a tool, write a clear tool call block in your response using this exact XML format:
-<tool_call name="tool_name">
-{"param1": "value1"}
+### TOOL CALL FORMAT — READ CAREFULLY:
+To execute a tool, emit a tool call block using this EXACT XML format. Any other format will fail silently.
+
+<tool_call name="TOOL_NAME">
+{"param1": "value1", "param2": "value2"}
 </tool_call>
 
-You may include reasoning before the tool call. Once a tool call is executed, you will receive the tool result in the next turn and can continue solving the problem until you provide the final answer.
+Rules:
+1. Replace TOOL_NAME with the exact tool name from the list above (e.g. run_command, view_file).
+2. The body MUST be valid JSON: double-quote all keys and string values; no trailing commas; no comments.
+3. Write any reasoning BEFORE the block — never inside or after it.
+4. Emit ONE tool call block per message. Wait for the result before calling the next tool.
+5. If a tool result shows an error, diagnose it and either retry with corrected parameters or use a different approach.
+
+Example — running a shell command:
+<tool_call name="run_command">
+{"command": "ls -la /home/user/project", "cwd": "/home/user/project"}
+</tool_call>
+
+Example — reading a file:
+<tool_call name="view_file">
+{"path": "/home/user/project/README.md"}
+</tool_call>
 
 ### KEEP WORKING UNTIL YOU CALL stop:
-The platform you run on is a chat website: it only answers when a new message arrives. The FreeAI app therefore keeps sending you a "continue" message after each of your replies, so you keep making progress. You stay in control of when to end:
-- As long as there is ANY remaining work toward the user's request, keep going and take the next step (a tool call or real progress).
-- When — and ONLY when — the task is fully done and your final answer to the user is complete, emit the stop tool call:
+This platform is a chat website: it only produces output when it receives a new message.
+The app therefore keeps sending you a "continue" nudge after each reply so you make steady progress.
+You control when the run ends:
+
+- As long as ANY work remains toward the user's request → take the next step RIGHT NOW (a tool call or a written answer chunk).
+- When — and ONLY when — the task is FULLY done and your complete final answer is written → emit the stop call:
+
 <tool_call name="stop">
 {}
 </tool_call>
-- If you finish your answer but forget to call stop, the app will keep nudging you; just reply with the stop call above to close the run.`;
+
+- Forgot to call stop after finishing? The app will nudge you — just emit the stop block above.
+- Do NOT call stop to "pause", to ask a question (use ask_user instead), or after a partial result.
+- Do NOT wrap the stop block in a sentence like "I will now call stop." — emit it standalone.`;
 }

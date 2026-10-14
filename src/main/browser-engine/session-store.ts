@@ -8,6 +8,22 @@ export interface ProviderSessionMeta {
   lastUsed: number;
 }
 
+// Lista completa de provedores suportados — mantida em sincronia com provider-configs.ts
+// e BrowserManager.PROVIDER_URLS para que o sessions.json nunca esteja incompleto.
+const ALL_PROVIDERS = [
+  'deepseek',
+  'gemini',
+  'chatgpt',
+  'kimi',
+  'glm',
+  'arena',
+  'qwen',
+  'qwen-net',
+  'meta',
+  'dola',
+  'useai',
+];
+
 export class SessionStore {
   private configDir: string;
   private metaFile: string;
@@ -22,20 +38,39 @@ export class SessionStore {
     if (!fs.existsSync(this.configDir)) {
       fs.mkdirSync(this.configDir, { recursive: true });
     }
+
+    // Cria o arquivo se não existir
     if (!fs.existsSync(this.metaFile)) {
-      fs.writeFileSync(
-        this.metaFile,
-        JSON.stringify(
-          {
-            deepseek: { provider: 'deepseek', isAuthenticated: false, lastUsed: 0 },
-            gemini: { provider: 'gemini', isAuthenticated: false, lastUsed: 0 },
-            chatgpt: { provider: 'chatgpt', isAuthenticated: false, lastUsed: 0 },
-          },
-          null,
-          2
-        ),
-        'utf-8'
+      const defaults: Record<string, ProviderSessionMeta> = {};
+      for (const p of ALL_PROVIDERS) {
+        defaults[p] = { provider: p, isAuthenticated: false, lastUsed: 0 };
+      }
+      fs.writeFileSync(this.metaFile, JSON.stringify(defaults, null, 2), 'utf-8');
+      return;
+    }
+
+    // Arquivo já existe: garante que novos provedores tenham entrada (migração)
+    try {
+      const data: Record<string, ProviderSessionMeta> = JSON.parse(
+        fs.readFileSync(this.metaFile, 'utf-8')
       );
+      let changed = false;
+      for (const p of ALL_PROVIDERS) {
+        if (!data[p]) {
+          data[p] = { provider: p, isAuthenticated: false, lastUsed: 0 };
+          changed = true;
+        }
+      }
+      if (changed) {
+        fs.writeFileSync(this.metaFile, JSON.stringify(data, null, 2), 'utf-8');
+      }
+    } catch {
+      // Arquivo corrompido — recria do zero preservando os nomes
+      const defaults: Record<string, ProviderSessionMeta> = {};
+      for (const p of ALL_PROVIDERS) {
+        defaults[p] = { provider: p, isAuthenticated: false, lastUsed: 0 };
+      }
+      fs.writeFileSync(this.metaFile, JSON.stringify(defaults, null, 2), 'utf-8');
     }
   }
 
@@ -56,6 +91,23 @@ export class SessionStore {
     } catch {
       // ignore
     }
+  }
+
+  /**
+   * Marca explicitamente a sessão como autenticada (true) ou desconectada (false).
+   *
+   * Importante: quando `authenticated` é false, SÓ grava se o estado atual no disco
+   * também já for false — nunca apaga um login bem-sucedido por causa de um erro de
+   * envio de mensagem. A sessão autenticada só é revogada por logout explícito ou
+   * pela janela de login (openLoginWindow) que confirma a ausência de cookies.
+   */
+  public setSessionAuthenticated(provider: string, authenticated: boolean) {
+    if (!authenticated) {
+      // Não sobrescreve 'true' salvo com 'false' por erro de envio
+      const current = this.getSessionMeta(provider);
+      if (current.isAuthenticated) return;
+    }
+    this.setSessionMeta(provider, { isAuthenticated: authenticated });
   }
 
   public getPartition(provider: string): string {

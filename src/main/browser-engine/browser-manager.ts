@@ -142,7 +142,7 @@ export class BrowserManager {
   }
 
   public markSession(provider: ProviderId, ok: boolean) {
-    this.sessionStore.setSessionMeta(provider, { isAuthenticated: ok });
+    this.sessionStore.setSessionAuthenticated(provider, ok);
   }
 
   public getAllSessionStatus(): Record<string, boolean> {
