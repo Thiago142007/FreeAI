@@ -3,6 +3,7 @@ import { Minus, Square, X } from 'lucide-react';
 import { useSettingsStore } from '../../store/settings-store';
 
 export const TitleBar: React.FC = () => {
+  const isMac = window.electronAPI?.platform === 'darwin';
   const cwd = useSettingsStore((state) => state.cwd);
   const provider = useSettingsStore((state) => state.provider);
   const providerStatus = useSettingsStore((state) => state.providerStatus);
@@ -27,7 +28,7 @@ export const TitleBar: React.FC = () => {
 
   return (
     <header
-      className="h-[38px] min-h-[38px] w-full bg-ag-bg-secondary border-b border-ag-border flex items-center justify-between px-3 select-none z-50 text-xs"
+      className={`h-[38px] min-h-[38px] w-full bg-ag-bg-secondary border-b border-ag-border flex items-center justify-between py-1 pe-3 select-none z-50 text-xs ${isMac ? 'ps-[74px]' : 'ps-3'}`}
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
       {/* Left side: Logo & CWD */}
@@ -67,7 +68,8 @@ export const TitleBar: React.FC = () => {
         </div>
       </div>
 
-      {/* Right side: Window controls */}
+      {/* Right side: Window controls (native traffic lights take over on macOS) */}
+      {!isMac && (
       <div
         className="flex items-center space-x-1"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
@@ -99,6 +101,7 @@ export const TitleBar: React.FC = () => {
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
+      )}
     </header>
   );
 };

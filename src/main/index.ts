@@ -3,11 +3,11 @@ import * as path from 'path';
 import { BrowserManager } from './browser-engine/browser-manager';
 import { AgentOrchestrator } from './agent/agent-orchestrator';
 import { registerIpcHandlers } from './ipc-handlers';
+import { getPlatformAdapter } from './platform';
 
-// Disable SUID sandbox and GPU process crashes on Linux systems
-app.commandLine.appendSwitch('no-sandbox');
-app.commandLine.appendSwitch('disable-setuid-sandbox');
-app.commandLine.appendSwitch('disable-gpu');
+// Sandbox/GPU workarounds apply only on Linux; win/mac keep Chromium's native sandbox.
+const platformAdapter = getPlatformAdapter();
+for (const flag of platformAdapter.sandboxFlags) app.commandLine.appendSwitch(flag);
 
 let mainWindow: BrowserWindow | null = null;
 let browserManager: BrowserManager | null = null;
@@ -21,8 +21,7 @@ function createWindow() {
     height: 900,
     minWidth: 960,
     minHeight: 600,
-    frame: false,
-    titleBarStyle: 'hidden',
+    ...platformAdapter.windowOptions,
     backgroundColor: '#0f0f0f',
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload', 'index.js'),
@@ -54,7 +53,7 @@ function createWindow() {
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
-  app.quit();
+  if (platformAdapter.quitOnAllClosed) app.quit();
 });
 
 app.on('activate', () => {
