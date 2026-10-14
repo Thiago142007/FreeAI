@@ -3,6 +3,22 @@ import { v4 as uuidv4 } from 'uuid';
 import { Conversation, Message, AIProvider, AgentMode, Project } from '../types';
 import { useEditorStore } from './editor-store';
 
+export interface RunningRun {
+  conversationId: string;
+  messageId: string;
+  provider: AIProvider;
+}
+
+export interface RunPayload {
+  prompt: string;
+  provider: AIProvider;
+  mode: AgentMode;
+  cwd: string;
+  projectPath?: string;
+  modelId?: string;
+  capabilityId?: string;
+}
+
 interface ConversationMetaRow {
   id: string;
   title: string;
@@ -24,8 +40,12 @@ interface ChatState {
   initialized: boolean;
   loadingOlder: boolean;
   loadingNewer: boolean;
+  running: Record<string, RunningRun>;
   getActiveConversation: () => Conversation | undefined;
   init: () => Promise<void>;
+  attachAgentEvents: () => () => void;
+  startRun: (conversationId: string, displayText: string, payload: RunPayload) => boolean;
+  stopRun: (conversationId: string) => void;
   createProject: (name: string, folderPath: string) => Promise<Project>;
   createConversation: (
     provider?: AIProvider,
@@ -92,6 +112,21 @@ function patchConversation(
   return state.conversations.map((conv) => (conv.id === id ? patch(conv) : conv));
 }
 
+// isStreaming é estado vivo da corrida, não verdade persistida: uma mensagem carregada do
+// disco nunca tem streaming em andamento (a corrida anterior morreu junto com o renderer).
+function settleStreaming(messages: Message[]): Message[] {
+  return messages.map((msg) => (msg.isStreaming ? { ...msg, isStreaming: false } : msg));
+}
+
+function clearRunning(conversationId: string): void {
+  useChatStore.setState((state) => {
+    if (!state.running[conversationId]) return state;
+    const running = { ...state.running };
+    delete running[conversationId];
+    return { running };
+  });
+}
+
 export const useChatStore = create<ChatState>((set, get) => ({
   projects: [],
   conversations: [],
@@ -99,10 +134,153 @@ export const useChatStore = create<ChatState>((set, get) => ({
   initialized: false,
   loadingOlder: false,
   loadingNewer: false,
+  running: {},
 
   getActiveConversation: () => {
     const { conversations, activeConversationId } = get();
     return conversations.find((c) => c.id === activeConversationId);
+  },
+
+  // Única assinatura dos eventos do agente: vive no store para o streaming sobreviver
+  // a qualquer troca de tela (abrir arquivo, trocar de conversa, voltar ao chat).
+  attachAgentEvents: () => {
+    const freeai = api();
+    if (!freeai) return () => undefined;
+
+    const messageOf = (conversationId: string, run: RunningRun) => {
+      const conv = get().conversations.find((c) => c.id === conversationId);
+      return conv?.messages.find((m) => m.id === run.messageId);
+    };
+
+    const unsubToken = freeai.onToken(({ conversationId, fullText }) => {
+      const run = get().running[conversationId];
+      if (!run) return;
+      get().updateMessage(conversationId, run.messageId, { content: fullText, isStreaming: true });
+    });
+
+    const unsubThinking = freeai.onThinking(({ conversationId, thinkingText }) => {
+      const run = get().running[conversationId];
+      if (!run) return;
+      get().updateMessage(conversationId, run.messageId, {
+        thinking: { content: thinkingText, durationMs: 1200, isExpanded: true }
+      });
+    });
+
+    const unsubToolCall = freeai.onToolCall(({ conversationId, toolCall }) => {
+      const run = get().running[conversationId];
+      if (!run) return;
+      const existingTools = messageOf(conversationId, run)?.toolCalls || [];
+      get().updateMessage(conversationId, run.messageId, {
+        toolCalls: [
+          ...existingTools,
+          {
+            id: toolCall.id,
+            name: toolCall.name,
+            displayName: toolCall.displayName,
+            status: 'running' as const,
+            input: JSON.stringify(toolCall.parameters, null, 2)
+          }
+        ]
+      });
+    });
+
+    const unsubToolResult = freeai.onToolResult(({ conversationId, toolResult }) => {
+      const run = get().running[conversationId];
+      if (!run) return;
+      const existingTools = messageOf(conversationId, run)?.toolCalls || [];
+      get().updateMessage(conversationId, run.messageId, {
+        toolCalls: existingTools.map((t) =>
+          t.id === toolResult.id
+            ? { ...t, status: toolResult.status, output: toolResult.output, durationMs: toolResult.durationMs }
+            : t
+        )
+      });
+    });
+
+    const unsubComplete = freeai.onComplete(({ conversationId, finalText }) => {
+      const run = get().running[conversationId];
+      if (!run) return;
+      get().updateMessage(conversationId, run.messageId, { content: finalText, isStreaming: false });
+      clearRunning(conversationId);
+    });
+
+    const unsubError = freeai.onError(({ conversationId, error }) => {
+      const run = get().running[conversationId];
+      if (!run) return;
+      get().updateMessage(conversationId, run.messageId, {
+        content: `⚠️ Error executing agent: ${error}`,
+        isStreaming: false
+      });
+      clearRunning(conversationId);
+    });
+
+    return () => {
+      unsubToken();
+      unsubThinking();
+      unsubToolCall();
+      unsubToolResult();
+      unsubComplete();
+      unsubError();
+    };
+  },
+
+  startRun: (conversationId, displayText, payload) => {
+    if (get().running[conversationId]) return false;
+
+    get().addMessage(conversationId, { role: 'user', content: displayText });
+    const assistantId = uuidv4();
+    get().addMessage(conversationId, {
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      isStreaming: true
+    });
+    set((state) => ({
+      running: {
+        ...state.running,
+        [conversationId]: { conversationId, messageId: assistantId, provider: payload.provider }
+      }
+    }));
+
+    const freeai = api();
+    if (!freeai) {
+      get().updateMessage(conversationId, assistantId, {
+        content:
+          '⚠️ A ponte do Electron (window.freeai) não está disponível. O agente só executa dentro do app desktop — abra o FreeAI via `./start-freeai.sh`.',
+        isStreaming: false
+      });
+      clearRunning(conversationId);
+      return false;
+    }
+
+    freeai
+      .sendMessage({
+        conversationId,
+        prompt: payload.prompt,
+        provider: payload.provider,
+        mode: payload.mode,
+        cwd: payload.cwd,
+        projectPath: payload.projectPath,
+        modelId: payload.modelId,
+        capabilityId: payload.capabilityId
+      })
+      .catch(() => {
+        get().updateMessage(conversationId, assistantId, {
+          content: '⚠️ Falha ao enviar ao agente.',
+          isStreaming: false
+        });
+        clearRunning(conversationId);
+      });
+
+    return true;
+  },
+
+  stopRun: (conversationId) => {
+    const run = get().running[conversationId];
+    if (!run) return;
+    api()?.stopGeneration(run.provider);
+    get().updateMessage(conversationId, run.messageId, { isStreaming: false });
+    clearRunning(conversationId);
   },
 
   init: async () => {
@@ -157,7 +335,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set((state) => ({
           conversations: patchConversation(state, activeConversationId!, (conv) => ({
             ...conv,
-            messages: w.messages,
+            messages: settleStreaming(w.messages),
             windowStart: Math.max(0, w.total - w.messages.length),
             totalMessages: w.total
           }))
@@ -255,6 +433,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   deleteConversation: (id) => {
+    clearRunning(id);
     set((state) => {
       const updatedList = state.conversations.filter((conv) => conv.id !== id);
       const nextActiveId =
@@ -287,7 +466,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           set((state) => ({
             conversations: patchConversation(state, id, (c) => ({
               ...c,
-              messages: w.messages,
+              messages: settleStreaming(w.messages),
               windowStart: w.total - w.messages.length,
               totalMessages: w.total
             }))
@@ -319,7 +498,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ loadingOlder: true });
     try {
       const w = await freeai.getConversationWindow(conversationId, start, count);
-      const older = w.messages;
+      const older = settleStreaming(w.messages);
       set((state) => ({
         conversations: patchConversation(state, conversationId, (c) => {
           const merged = [...older, ...c.messages];
@@ -351,7 +530,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ loadingNewer: true });
     try {
       const w = await freeai.getConversationWindow(conversationId, windowEnd, count);
-      const newer = w.messages;
+      const newer = settleStreaming(w.messages);
       set((state) => ({
         conversations: patchConversation(state, conversationId, (c) => {
           const merged = [...c.messages, ...newer];

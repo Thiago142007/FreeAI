@@ -1,6 +1,6 @@
 {
   "name": "freeai",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "FreeAI - AI Agent Desktop for Linux",
   "homepage": "https://github.com/thiago142007/FreeAI",
   "main": "dist/main/index.js",

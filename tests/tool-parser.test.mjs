@@ -95,7 +95,7 @@ test('looksLikeToolCall detecta marcadores unknown-format', () => {
 
 test('parseToolCalls: JSON malformado emitido pelo modelo (aspas aninhadas no comando)', () => {
   const content = OPEN + ' name="run_command">\n' +
-     `{"command": "echo "HOME=/tmp" "$HOME/Work Area" 2>/dev/null"}\n${CLOSE}`;
+    `{"command": "echo "HOME=/tmp" "$HOME/Work Area" 2>/dev/null"}\n${CLOSE}`;
   const calls = parseToolCalls(content);
   assert.equal(calls.length, 1,
     'o modelo escreve aspas duplas dentro do comando o tempo todo; JSON.parse falha, ' +

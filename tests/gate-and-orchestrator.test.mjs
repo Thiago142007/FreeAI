@@ -19,8 +19,8 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'freeai-gate-'));
 
 function callbacks(extra = {}) {
   return {
-    onToken() {}, onThinking() {}, onToolCall() {}, onToolResult() {},
-    onComplete() {}, onError() {}, ...extra
+    onToken() { }, onThinking() { }, onToolCall() { }, onToolResult() { },
+    onComplete() { }, onError() { }, ...extra
   };
 }
 
@@ -34,7 +34,7 @@ function manager(turns) {
       i++;
       return typeof t === 'function' ? t() : t;
     },
-    stop() {}
+    stop() { }
   };
 }
 
@@ -91,7 +91,7 @@ test('chamada de ferramenta junto com stop não pode ser silenciosamente descart
 
 test('stop() não interrompe o sendPrompt em andamento (a corrida segue até o provedor responder)', async () => {
   let release;
-  const mgr = { async sendPrompt() { return new Promise((r) => { release = r; }); }, stop() {} };
+  const mgr = { async sendPrompt() { return new Promise((r) => { release = r; }); }, stop() { } };
   const orch = new AgentOrchestrator(mgr);
   let completed = false;
   orch.run('c1', 'p1', 'deepseek', 'fast', tmp, callbacks({ onComplete: () => { completed = true; } }));
@@ -113,7 +113,7 @@ test('segunda run não pode reativar uma corrida já cancelada', async () => {
       if (turn === 2) return new Promise((r) => { release = r; });
       return call('stop', '{}');
     },
-    stop() {}
+    stop() { }
   };
   const orch = new AgentOrchestrator(mgr);
   const events = [];

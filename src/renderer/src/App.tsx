@@ -12,6 +12,7 @@ import { AIProvider } from './types';
 export const App: React.FC = () => {
   useKeybindings();
   const initChatStore = useChatStore((state) => state.init);
+  const attachAgentEvents = useChatStore((state) => state.attachAgentEvents);
   const setProviderStatus = useSettingsStore((state) => state.setProviderStatus);
   const markFeatureLimited = useSettingsStore((state) => state.markFeatureLimited);
   const setProviderBusy = useSettingsStore((state) => state.setProviderBusy);
@@ -50,6 +51,10 @@ export const App: React.FC = () => {
   useEffect(() => {
     initChatStore();
   }, [initChatStore]);
+
+  // Eventos do agente assinados na raiz do app: abrir um arquivo ou trocar de conversa
+  // desmonta o ChatCanvas, e a corrida em andamento precisa continuar viva no store.
+  useEffect(() => attachAgentEvents(), [attachAgentEvents]);
 
   // Reflete o estado REAL das sessões salvas no disco, e acompanha mudanças ao vivo
   useEffect(() => {

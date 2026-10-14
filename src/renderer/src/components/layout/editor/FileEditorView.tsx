@@ -15,7 +15,6 @@ import { useChatStore } from '../../../store/chat-store';
 import { useSettingsStore } from '../../../store/settings-store';
 import { MessageItem } from '../../chat/MessageItem';
 import { PromptBox } from '../../chat/PromptBox';
-import { v4 as uuidv4 } from 'uuid';
 import { buildFileEditPrompt } from '../../../SystemPrompts/file-edit-prompt';
 
 // oneDark pinta #282c34 (azulado); o app é grafite neutro.
@@ -80,9 +79,9 @@ export const FileEditorView: React.FC = () => {
   const reloadFromDisk = useEditorStore((s) => s.reloadFromDisk);
 
   const conversations = useChatStore((s) => s.conversations);
-  const addMessage = useChatStore((s) => s.addMessage);
-  const updateMessage = useChatStore((s) => s.updateMessage);
-  const getActiveConversation = useChatStore((s) => s.getActiveConversation);
+  const startRun = useChatStore((s) => s.startRun);
+  const stopRun = useChatStore((s) => s.stopRun);
+  const running = useChatStore((s) => s.running);
 
   const provider = useSettingsStore((s) => s.provider);
   const mode = useSettingsStore((s) => s.mode);
@@ -93,12 +92,11 @@ export const FileEditorView: React.FC = () => {
   const editorHostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const currentAssistantMsgIdRef = useRef<string | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [busyNotice, setBusyNotice] = useState<string | null>(null);
 
   const conv = conversations.find((c) => c.id === conversationId);
   const messages = conv?.messages ?? [];
+  const isGenerating = !!running[conversationId ?? ''];
   const dirty = content !== savedContent;
 
   // ---- CodeMirror mount ----
@@ -157,25 +155,10 @@ export const FileEditorView: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length, messages[messages.length - 1]?.content]);
 
-  // ---- listeners do chat do arquivo ----
+  // Recarrega o buffer quando a IA escreve o arquivo aberto nesta conversa
   useEffect(() => {
     if (!window.freeai || !conversationId) return;
 
-    const matches = (id: string) => id === conversationId && currentAssistantMsgIdRef.current;
-
-    const unsubToken = window.freeai.onToken(({ conversationId: cid, fullText }) => {
-      if (matches(cid)) {
-        updateMessage(cid, currentAssistantMsgIdRef.current!, { content: fullText, isStreaming: true });
-      }
-    });
-    const unsubThinking = window.freeai.onThinking(({ conversationId: cid, thinkingText }) => {
-      if (matches(cid)) {
-        updateMessage(cid, currentAssistantMsgIdRef.current!, {
-          thinking: { content: thinkingText, durationMs: 1200, isExpanded: true }
-        });
-      }
-    });
-    const unsubToolCall = window.freeai.onToolCall(() => undefined);
     const unsubToolResult = window.freeai.onToolResult(({ conversationId: cid, toolResult }) => {
       if (cid !== conversationId) return;
       const name = toolResult?.name;
@@ -187,33 +170,11 @@ export const FileEditorView: React.FC = () => {
         }
       }
     });
-    const unsubComplete = window.freeai.onComplete(({ conversationId: cid, finalText }) => {
-      if (matches(cid)) {
-        updateMessage(cid, currentAssistantMsgIdRef.current!, { content: finalText, isStreaming: false });
-        setIsGenerating(false);
-        currentAssistantMsgIdRef.current = null;
-      }
-    });
-    const unsubError = window.freeai.onError(({ conversationId: cid, error }) => {
-      if (matches(cid)) {
-        updateMessage(cid, currentAssistantMsgIdRef.current!, {
-          content: `⚠️ ${error}`,
-          isStreaming: false
-        });
-        setIsGenerating(false);
-        currentAssistantMsgIdRef.current = null;
-      }
-    });
 
     return () => {
-      unsubToken();
-      unsubThinking();
-      unsubToolCall();
       unsubToolResult();
-      unsubComplete();
-      unsubError();
     };
-  }, [conversationId, updateMessage]);
+  }, [conversationId]);
 
   const busyInfo = providerBusy[provider];
   const busyElsewhere = busyInfo && busyInfo.conversationId !== conversationId;
@@ -226,49 +187,31 @@ export const FileEditorView: React.FC = () => {
     }
     setBusyNotice(null);
 
-    addMessage(conversationId, { role: 'user', content: text });
-    const assistantId = uuidv4();
-    currentAssistantMsgIdRef.current = assistantId;
-    setIsGenerating(true);
-    addMessage(conversationId, { id: assistantId, role: 'assistant', content: '', isStreaming: true });
-
     const state = useEditorStore.getState();
+    const root = state.opened.root;
+    const path = state.opened.path;
+    if (!root || !path) return;
     const truncated = state.content.slice(0, 20000);
-    const prompt = buildFileEditPrompt({
-      path: state.opened.path,
-      root: state.opened.root,
-      content: truncated,
-      request: text,
-      onlyThisFile: state.onlyThisFile
-    });
 
-    if (window.freeai && state.opened.root) {
-      window.freeai.sendMessage({
-        conversationId,
-        prompt,
-        provider,
-        mode,
-        cwd: state.opened.root,
-        projectPath: state.opened.root,
-        modelId: activeModels[provider] || undefined,
-        capabilityId: activeCapabilities[provider] || undefined
-      });
-    } else {
-      updateMessage(conversationId, assistantId, {
-        content: '⚠️ Ponte do Electron indisponível.',
-        isStreaming: false
-      });
-      setIsGenerating(false);
-    }
+    startRun(conversationId, text, {
+      prompt: buildFileEditPrompt({
+        path,
+        root,
+        content: truncated,
+        request: text,
+        onlyThisFile: state.onlyThisFile
+      }),
+      provider,
+      mode,
+      cwd: root,
+      projectPath: root,
+      modelId: activeModels[provider] || undefined,
+      capabilityId: activeCapabilities[provider] || undefined
+    });
   };
 
   const handleStop = () => {
-    if (window.freeai) window.freeai.stopGeneration(provider);
-    setIsGenerating(false);
-    if (currentAssistantMsgIdRef.current && conversationId) {
-      updateMessage(conversationId, currentAssistantMsgIdRef.current, { isStreaming: false });
-      currentAssistantMsgIdRef.current = null;
-    }
+    if (conversationId) stopRun(conversationId);
   };
 
   return (

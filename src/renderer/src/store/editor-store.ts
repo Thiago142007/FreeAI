@@ -13,6 +13,7 @@ interface EditorState {
   content: string;
   savedContent: string;
   conversationId: string | null;
+  previousConversationId: string | null;
   chatOpen: boolean;
   onlyThisFile: boolean;
   externalChange: boolean;
@@ -41,6 +42,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   content: '',
   savedContent: '',
   conversationId: null,
+  previousConversationId: null,
   chatOpen: false,
   onlyThisFile: false,
   externalChange: false,
@@ -62,6 +64,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
 
     const chat = useChatStore.getState();
+    // Abrir arquivo troca a conversa ativa; herdar a conversa guardada do arquivo já
+    // aberto faz o último X voltar ao chat original em vez de voltar ao arquivo anterior
+    const previousConversationId = get().previousConversationId ?? chat.activeConversationId;
     const existing = chat.conversations.find(
       (c) => c.filePath === path && c.cwd === root
     );
@@ -78,21 +83,29 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       content: res.content,
       savedContent: res.content,
       conversationId,
+      previousConversationId,
       externalChange: false,
       error: null
     });
     return true;
   },
 
-  closeFile: () =>
+  closeFile: () => {
+    const { previousConversationId } = get();
     set({
       opened: { path: null, name: null, root: null },
       content: '',
       savedContent: '',
       conversationId: null,
+      previousConversationId: null,
       externalChange: false,
       error: null
-    }),
+    });
+    // opened.path já é null aqui, então isso não reentrar em closeFile
+    if (previousConversationId) {
+      useChatStore.getState().setActiveConversation(previousConversationId);
+    }
+  },
 
   setContent: (text) => set({ content: text }),
 

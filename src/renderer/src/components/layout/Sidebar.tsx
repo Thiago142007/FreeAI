@@ -11,7 +11,8 @@ import {
   Clock,
   Boxes,
   Settings,
-  MessageSquare
+  MessageSquare,
+  Loader2
 } from 'lucide-react';
 import { useChatStore } from '../../store/chat-store';
 import { useSettingsStore } from '../../store/settings-store';
@@ -25,15 +26,10 @@ import { NewProjectModal } from './sidebar/NewProjectModal';
 const ConversationRow: React.FC<{ conv: Conversation; projectFolder?: string }> = ({ conv }) => {
   const activeConversationId = useChatStore((state) => state.activeConversationId);
   const setActiveConversation = useChatStore((state) => state.setActiveConversation);
+  const running = useChatStore((state) => state.running);
 
   const isActive = activeConversationId === conv.id;
-  const lastMessage = conv.messages.length > 0 ? conv.messages[conv.messages.length - 1] : null;
-  const preview = (lastMessage
-    ? lastMessage.content
-    : conv.preview || ''
-  )
-    .replace(/[#*`_~]/g, '')
-    .trim();
+  const isRunning = !!running[conv.id];
   const timestamp = new Date(conv.updatedAt || conv.createdAt).toLocaleTimeString([], {
     hour: '2-digit',
     minute: '2-digit'
@@ -42,29 +38,34 @@ const ConversationRow: React.FC<{ conv: Conversation; projectFolder?: string }> 
   return (
     <div
       onClick={() => setActiveConversation(conv.id)}
-      className={`group relative flex flex-col px-2.5 py-2 rounded-lg cursor-pointer transition-all duration-150 border-l-2 ${
+      title={conv.title || 'Untitled Conversation'}
+      className={`group relative flex items-center gap-1.5 px-2 py-0.5 rounded cursor-pointer transition-colors duration-150 border-l-2 ${
         isActive
-          ? 'bg-ag-bg-active border-ag-accent text-ag-text shadow-sm'
+          ? 'bg-ag-bg-active border-ag-accent text-ag-text'
           : 'border-transparent text-ag-text-secondary hover:bg-ag-bg-hover hover:text-ag-text'
       }`}
     >
-      <div className="flex items-center justify-between gap-1.5">
-        <span className="text-xs font-medium truncate flex-1 text-ag-text">
-          {conv.title || 'Untitled Conversation'}
-        </span>
-        <span className="text-[10px] text-ag-text-muted font-mono flex-shrink-0">{timestamp}</span>
-        <button
-          onClick={(e) => e.stopPropagation()}
-          className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-ag-bg-card text-ag-text-muted hover:text-ag-text transition-opacity duration-150"
-          title="Conversation actions"
-        >
-          <MoreHorizontal className="w-3.5 h-3.5" />
-        </button>
-      </div>
-
-      <div className="text-[11px] text-ag-text-muted truncate mt-0.5 group-hover:text-ag-text-secondary transition-colors">
-        {preview || 'No messages yet'}
-      </div>
+      {isRunning ? (
+        <Loader2
+          className="w-3 h-3 shrink-0 animate-spin text-ag-accent"
+          aria-label="A IA está trabalhando nesta conversa"
+        />
+      ) : (
+        <span className="w-3 h-3 shrink-0" />
+      )}
+      <span className={`text-xs truncate flex-1 ${isRunning ? 'text-ag-text' : ''}`}>
+        {conv.title || 'Untitled Conversation'}
+      </span>
+      <span className="text-[10px] text-ag-text-muted font-mono opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        {timestamp}
+      </span>
+      <button
+        onClick={(e) => e.stopPropagation()}
+        className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-ag-bg-card text-ag-text-muted hover:text-ag-text transition-opacity duration-150 shrink-0"
+        title="Conversation actions"
+      >
+        <MoreHorizontal className="w-3.5 h-3.5" />
+      </button>
     </div>
   );
 };
@@ -230,7 +231,7 @@ export const Sidebar: React.FC = () => {
             </div>
 
             {/* Projects + Conversation List */}
-            <div className="flex-1 overflow-y-auto space-y-4 pr-1 mt-1">
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 mt-1">
               {projectSections.length === 0 && !hasAnyStandalone && (
                 <div className="py-8 text-center text-xs text-ag-text-muted">
                   {searchQuery ? 'No conversations found' : 'No conversations yet'}
@@ -241,13 +242,13 @@ export const Sidebar: React.FC = () => {
               {projectSections.map(({ project, chats }) => {
                 const collapsed = collapsedProjects[project.id];
                 return (
-                  <div key={project.id} className="space-y-1">
+                  <div key={project.id} className="space-y-0.5">
                     <div className="flex items-center gap-1 px-1 group/project">
                       <button
                         onClick={() =>
                           setCollapsedProjects((prev) => ({ ...prev, [project.id]: !prev[project.id] }))
                         }
-                        className="flex items-center gap-1.5 flex-1 min-w-0 py-1 text-left"
+                        className="flex items-center gap-1.5 flex-1 min-w-0 py-0.5 text-left"
                         title={project.folderPath}
                       >
                         {collapsed ? (
@@ -286,13 +287,13 @@ export const Sidebar: React.FC = () => {
 
               {/* Standalone (avulso) conversations below projects */}
               {hasAnyStandalone && (
-                <div className="space-y-4">
-                  <div className="text-[10px] font-semibold text-ag-text-muted uppercase tracking-wider px-2 py-1 border-t border-ag-border/60 pt-3">
+                <div className="space-y-2">
+                  <div className="text-[10px] font-semibold text-ag-text-muted uppercase tracking-wider px-2 py-0.5 border-t border-ag-border/60 pt-2">
                     Conversas avulsas
                   </div>
                   {standaloneGroups.map((group) => (
-                    <div key={group.title} className="space-y-1">
-                      <div className="text-[10px] font-semibold text-ag-text-muted uppercase tracking-wider px-2 py-1">
+                    <div key={group.title} className="space-y-0.5">
+                      <div className="text-[10px] font-semibold text-ag-text-muted uppercase tracking-wider px-2 py-0.5">
                         {group.title}
                       </div>
 

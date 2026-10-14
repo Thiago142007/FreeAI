@@ -21,18 +21,18 @@ electronStub.exports = {
     const win = {
       isDestroyed: () => false,
       loadURL: (u) => { windowsOpened.push(u); return Promise.resolve(); },
-      close: () => {},
+      close: () => { },
       webContents: {
         getURL: () => 'about:blank',
         isLoading: () => false,
         isDestroyed: () => false,
-        setWindowOpenHandler: () => {},
+        setWindowOpenHandler: () => { },
         executeJavaScript: async () => false
       }
     };
     return win;
   },
-  ipcMain: { handle() {}, on() {} }
+  ipcMain: { handle() { }, on() { } }
 };
 const realResolve = Module._resolveFilename;
 Module._resolveFilename = function (request, ...rest) {
@@ -59,7 +59,7 @@ test('todo provedor listado na UI existe no main', () => {
 test('provedor desconhecido não pode abrir a janela de outro provedor', async () => {
   const mgr = new BrowserManager();
   windowsOpened.length = 0;
-  const err = await mgr.sendPrompt('unknown-provider', 'oi', { onToken() {}, onThinking() {} })
+  const err = await mgr.sendPrompt('unknown-provider', 'oi', { onToken() { }, onThinking() { } })
     .then(() => null, (e) => e.message);
   assert.ok(err, 'sendPrompt("useai") não lançou erro');
   assert.deepEqual(windowsOpened, [],
@@ -134,7 +134,7 @@ test('ask_user: timeout devolve texto mas ignora a resposta dada depois', async 
 test('ask_user: cancelamento por provedor não pode deixar promessa pendente para sempre', async () => {
   let rejected = null;
   const promise = askUser.requestAnswers('r2', 'gemini',
-    { questions: [{ question: 'X?', options: ['a'] }] }, () => {});
+    { questions: [{ question: 'X?', options: ['a'] }] }, () => { });
   const guarded = promise.catch((e) => { rejected = e.message; return 'rejected'; });
   askUser.cancelByProvider('gemini');
   const outcome = await Promise.race([guarded, new Promise((r) => setTimeout(() => r('TIMEOUT'), 500))]);
@@ -143,7 +143,7 @@ test('ask_user: cancelamento por provedor não pode deixar promessa pendente par
 });
 
 test('ask_user: recusa perguntas vazias sem travar a corrida', async () => {
-  const out = await askUser.requestAnswers('r3', 'deepseek', { questions: [] }, () => {});
+  const out = await askUser.requestAnswers('r3', 'deepseek', { questions: [] }, () => { });
   assert.match(out, /Nenhuma pergunta válida/);
 });
 
@@ -152,7 +152,7 @@ test('drivers sem sessão lançam erro real (nenhuma simulação de resposta)', 
   const { DeepSeekDriver } = require_(distPath('browser-engine/providers/deepseek-driver.js'));
   const { GeminiDriver } = require_(distPath('browser-engine/providers/gemini-driver.js'));
   const { ChatGPTDriver } = require_(distPath('browser-engine/providers/chatgpt-driver.js'));
-  const cb = { onToken() {}, onThinking() {} };
+  const cb = { onToken() { }, onThinking() { } };
   const drivers = [
     ['generic/kimi', new GenericDriver(WEB_PROVIDER_CONFIGS.kimi)],
     ['deepseek', new DeepSeekDriver()],

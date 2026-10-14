@@ -2,6 +2,18 @@
 
 As mudanças relevantes do FreeAI são registradas neste arquivo.
 
+## [0.4.0] - 2026-10-13
+
+### Adicionado
+- Execuções do agente continuam transmitindo durante a troca de conversa, navegação para outras telas ou abertura do editor.
+- Conversas de provedores diferentes podem executar em paralelo, cada uma mantendo sua própria mensagem, estado de streaming e ação de parar.
+- Ao fechar um arquivo no editor, o app retorna à conversa que estava ativa antes da edição; arquivos abertos em sequência preservam esse retorno.
+
+### Alterado
+- Eventos e estado de execução foram centralizados na store do chat para evitar listeners duplicados e corridas órfãs quando as views desmontam.
+- Mensagens restauradas do disco deixam de aparecer como se ainda estivessem em streaming.
+- Adicionada cobertura de testes do lifecycle do renderer, incluindo troca de tela, encerramento, erros e restauração de conversas.
+
 ## [0.3.1] - 2026-10-13
 
 ### Corrigido

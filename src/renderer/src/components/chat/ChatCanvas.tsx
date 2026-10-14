@@ -1,10 +1,9 @@
-import React, { useRef, useEffect, useLayoutEffect, useState } from 'react';
-import { PanelRightOpen, PanelRightClose, Sparkles, Terminal, FileCode, Bot } from 'lucide-react';
+import React, { useRef, useLayoutEffect, useState } from 'react';
+import { PanelRightOpen, PanelRightClose, Sparkles, Terminal, FileCode, Bot, Loader2 } from 'lucide-react';
 import { useChatStore } from '../../store/chat-store';
 import { useSettingsStore } from '../../store/settings-store';
 import { MessageItem } from './MessageItem';
 import { PromptBox } from './PromptBox';
-import { v4 as uuidv4 } from 'uuid';
 
 export const ChatCanvas: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -14,8 +13,9 @@ export const ChatCanvas: React.FC = () => {
   const projects = useChatStore((state) => state.projects);
   const getActiveConversation = useChatStore((state) => state.getActiveConversation);
   const activeConversationId = useChatStore((state) => state.activeConversationId);
-  const addMessage = useChatStore((state) => state.addMessage);
-  const updateMessage = useChatStore((state) => state.updateMessage);
+  const running = useChatStore((state) => state.running);
+  const startRun = useChatStore((state) => state.startRun);
+  const stopRun = useChatStore((state) => state.stopRun);
   const loadOlder = useChatStore((state) => state.loadOlder);
   const loadNewer = useChatStore((state) => state.loadNewer);
 
@@ -27,15 +27,12 @@ export const ChatCanvas: React.FC = () => {
   const activeModels = useSettingsStore((state) => state.activeModels);
   const activeCapabilities = useSettingsStore((state) => state.activeCapabilities);
 
-  const [generatingConvId, setGeneratingConvId] = useState<string | null>(null);
   const [busyNotice, setBusyNotice] = useState<string | null>(null);
-  const currentAssistantMsgIdRef = useRef<string | null>(null);
-  const genConvRef = useRef<string | null>(null);
-  const isGenerating = generatingConvId === activeConversationId;
 
   const activeConversation =
     conversations.find((c) => c.id === activeConversationId) ?? getActiveConversation();
   const messages = activeConversation?.messages ?? [];
+  const isGenerating = !!running[activeConversationId ?? ''];
 
   const scrollAdjustRef = useRef<{ prevHeight: number; prevTop: number } | null>(null);
   const stickToBottomRef = useRef(false);
@@ -105,114 +102,6 @@ export const ChatCanvas: React.FC = () => {
     }
   };
 
-  // Registra listeners de IPC para eventos do agente
-  useEffect(() => {
-    if (!window.freeai) return;
-
-    const unsubToken = window.freeai.onToken(({ conversationId, fullText }) => {
-      if (currentAssistantMsgIdRef.current && conversationId === activeConversationId) {
-        updateMessage(conversationId, currentAssistantMsgIdRef.current, {
-          content: fullText,
-          isStreaming: true,
-        });
-      }
-    });
-
-    const unsubThinking = window.freeai.onThinking(({ conversationId, thinkingText }) => {
-      if (currentAssistantMsgIdRef.current && conversationId === activeConversationId) {
-        updateMessage(conversationId, currentAssistantMsgIdRef.current, {
-          thinking: {
-            content: thinkingText,
-            durationMs: 1200,
-            isExpanded: true,
-          },
-        });
-      }
-    });
-
-    const unsubToolCall = window.freeai.onToolCall(({ conversationId, toolCall }) => {
-      if (currentAssistantMsgIdRef.current && conversationId === activeConversationId) {
-        const conv = getActiveConversation();
-        const currentMsg = conv?.messages.find((m) => m.id === currentAssistantMsgIdRef.current);
-        const existingTools = currentMsg?.toolCalls || [];
-
-        updateMessage(conversationId, currentAssistantMsgIdRef.current, {
-          toolCalls: [
-            ...existingTools,
-            {
-              id: toolCall.id,
-              name: toolCall.name,
-              displayName: toolCall.displayName,
-              status: 'running',
-              input: JSON.stringify(toolCall.parameters, null, 2),
-            },
-          ],
-        });
-      }
-    });
-
-    const unsubToolResult = window.freeai.onToolResult(({ conversationId, toolResult }) => {
-      if (currentAssistantMsgIdRef.current && conversationId === activeConversationId) {
-        const conv = getActiveConversation();
-        const currentMsg = conv?.messages.find((m) => m.id === currentAssistantMsgIdRef.current);
-        const existingTools = currentMsg?.toolCalls || [];
-
-        const updatedTools = existingTools.map((t) => {
-          if (t.id === toolResult.id) {
-            return {
-              ...t,
-              status: toolResult.status,
-              output: toolResult.output,
-              durationMs: toolResult.durationMs,
-            };
-          }
-          return t;
-        });
-
-        updateMessage(conversationId, currentAssistantMsgIdRef.current, {
-          toolCalls: updatedTools,
-        });
-      }
-    });
-
-    const unsubComplete = window.freeai.onComplete(({ conversationId, finalText }) => {
-      if (conversationId === genConvRef.current) {
-        if (currentAssistantMsgIdRef.current && conversationId === activeConversationId) {
-          updateMessage(conversationId, currentAssistantMsgIdRef.current, {
-            content: finalText,
-            isStreaming: false,
-          });
-        }
-        genConvRef.current = null;
-        currentAssistantMsgIdRef.current = null;
-        setGeneratingConvId(null);
-      }
-    });
-
-    const unsubError = window.freeai.onError(({ conversationId, error }) => {
-      if (conversationId === genConvRef.current) {
-        if (currentAssistantMsgIdRef.current && conversationId === activeConversationId) {
-          updateMessage(conversationId, currentAssistantMsgIdRef.current, {
-            content: `⚠️ Error executing agent: ${error}`,
-            isStreaming: false,
-          });
-        }
-        genConvRef.current = null;
-        currentAssistantMsgIdRef.current = null;
-        setGeneratingConvId(null);
-      }
-    });
-
-    return () => {
-      unsubToken();
-      unsubThinking();
-      unsubToolCall();
-      unsubToolResult();
-      unsubComplete();
-      unsubError();
-    };
-  }, [activeConversationId, updateMessage, getActiveConversation]);
-
   const handleSendMessage = (content: string) => {
     if (!content.trim() || !activeConversationId || isGenerating) return;
 
@@ -225,64 +114,23 @@ export const ChatCanvas: React.FC = () => {
     }
     setBusyNotice(null);
 
-    // 1. Adiciona a mensagem do usuário
-    addMessage(activeConversationId, {
-      role: 'user',
-      content,
+    const project = activeConversation?.projectId
+      ? projects.find((p) => p.id === activeConversation.projectId)
+      : undefined;
+
+    startRun(activeConversationId, content, {
+      prompt: content,
+      provider,
+      mode,
+      cwd: project ? project.folderPath : activeConversation?.cwd || cwd,
+      projectPath: project?.folderPath,
+      modelId: activeModels[provider] || undefined,
+      capabilityId: activeCapabilities[provider] || undefined
     });
-
-    // 2. Cria a mensagem do assistente aguardando streaming
-    const assistantId = uuidv4();
-    currentAssistantMsgIdRef.current = assistantId;
-    genConvRef.current = activeConversationId;
-    setGeneratingConvId(activeConversationId);
-
-    addMessage(activeConversationId, {
-      id: assistantId,
-      role: 'assistant',
-      content: '',
-      isStreaming: true,
-    });
-
-    // 3. Despacha para o motor de agente local / headless browser
-    if (window.freeai) {
-      const project = activeConversation?.projectId
-        ? projects.find((p) => p.id === activeConversation.projectId)
-        : undefined;
-      window.freeai.sendMessage({
-        conversationId: activeConversationId,
-        prompt: content,
-        provider,
-        mode,
-        cwd: project ? project.folderPath : activeConversation?.cwd || cwd,
-        projectPath: project?.folderPath,
-        modelId: activeModels[provider] || undefined,
-        capabilityId: activeCapabilities[provider] || undefined,
-      });
-    } else {
-      updateMessage(activeConversationId, assistantId, {
-        content:
-          '⚠️ A ponte do Electron (window.freeai) não está disponível. O agente só executa dentro do app desktop — abra o FreeAI via `./start-freeai.sh`.',
-        isStreaming: false,
-      });
-      genConvRef.current = null;
-      setGeneratingConvId(null);
-      currentAssistantMsgIdRef.current = null;
-    }
   };
 
   const handleStopGenerating = () => {
-    if (window.freeai) {
-      window.freeai.stopGeneration(provider);
-    }
-    genConvRef.current = null;
-    setGeneratingConvId(null);
-    if (currentAssistantMsgIdRef.current && activeConversationId) {
-      updateMessage(activeConversationId, currentAssistantMsgIdRef.current, {
-        isStreaming: false,
-      });
-      currentAssistantMsgIdRef.current = null;
-    }
+    if (activeConversationId) stopRun(activeConversationId);
   };
 
   return (
@@ -299,6 +147,15 @@ export const ChatCanvas: React.FC = () => {
           <span className="text-2xs font-mono px-2 py-0.5 rounded-full bg-ag-bg-card border border-ag-border text-ag-accent">
             {activeConversation?.mode?.toUpperCase() || mode.toUpperCase()}
           </span>
+          {isGenerating && (
+            <span
+              className="flex items-center gap-1.5 text-2xs font-medium text-ag-accent"
+              title="A IA ainda está trabalhando nesta conversa"
+            >
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>IA trabalhando</span>
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-1">

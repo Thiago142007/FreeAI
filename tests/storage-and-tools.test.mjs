@@ -14,7 +14,7 @@ const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'freeai-store-'));
 const electronStub = new Module('electron');
 electronStub.filename = 'electron';
 electronStub.loaded = true;
-electronStub.exports = { app: { getPath: () => tmpRoot }, ipcMain: {}, BrowserWindow: function () {} };
+electronStub.exports = { app: { getPath: () => tmpRoot }, ipcMain: {}, BrowserWindow: function () { } };
 const realResolve = Module._resolveFilename;
 Module._resolveFilename = function (request, ...rest) {
   if (request === 'electron') return 'electron';

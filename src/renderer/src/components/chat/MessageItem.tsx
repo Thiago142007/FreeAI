@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Bot } from 'lucide-react';
+import { User, Bot, Loader2 } from 'lucide-react';
 import { Message } from '../../types';
 import { ThinkingAccordion } from './ThinkingAccordion';
 import { ToolCallCard } from './ToolCallCard';
@@ -109,9 +109,20 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
             </div>
           )}
 
-          {/* Streaming Cursor */}
+          {/* Estado de trabalho: antes do primeiro token a bola fica vazia sem isto */}
           {message.isStreaming && (
-            <span className="inline-block w-2 h-4 ml-1 bg-ag-accent animate-pulse align-middle" />
+            <div className="mt-2 flex items-center gap-2">
+              {message.content ? (
+                <span className="inline-block w-2 h-4 bg-ag-accent animate-pulse align-middle" />
+              ) : (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-ag-accent" />
+                  <span className="text-xs text-ag-text-secondary">
+                    {message.toolCalls?.length ? 'Trabalhando…' : 'Pensando…'}
+                  </span>
+                </>
+              )}
+            </div>
           )}
         </div>
       </div>
