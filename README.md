@@ -1,6 +1,6 @@
 # FreeAI
 
-Cliente desktop experimental para Linux que conecta provedores de IA por suas interfaces web e oferece ferramentas de agente para trabalhar com arquivos e comandos locais.
+Cliente desktop experimental para Linux, Windows 10/11 e macOS que conecta provedores de IA por suas interfaces web e oferece ferramentas de agente para trabalhar com arquivos e comandos locais.
 
 > FreeAI é um projeto independente e não oficial. Não é afiliado, endossado ou mantido pelo Google, OpenAI, DeepSeek ou outros provedores mencionados.
 
@@ -18,11 +18,13 @@ O acesso aos provedores depende de suas contas, disponibilidade, limites e termo
 
 ## Requisitos
 
-- Linux (Ubuntu, Debian, Arch ou Fedora).
-- Node.js LTS e npm.
+- Linux (Ubuntu, Debian, Arch ou Fedora), Windows 10/11 ou macOS.
+- Node.js 20 ou superior (LTS recomendado) e npm.
 - Conexão com a internet para acessar os provedores.
 
 ## Desenvolvimento
+
+Os comandos abaixo funcionam nos três sistemas operacionais (PowerShell no Windows, Terminal no macOS/Linux):
 
 ```bash
 git clone https://github.com/thiago142007/FreeAI.git
@@ -31,20 +33,41 @@ npm ci
 npm run dev
 ```
 
-Para compilar:
+Para compilar e executar o app:
 
 ```bash
 npm run build
 npm start
 ```
 
-Para gerar um pacote Debian:
+No Linux, `./start-freeai.sh` continua disponível como atalho.
 
-```bash
-npm run build:deb
-```
+## Instaladores e releases
 
-O pacote é criado em `release/`, que não faz parte do repositório-fonte.
+O CI do GitHub Actions (workflow `build`) roda a suíte de testes nos três SOs e gera os pacotes:
+
+| SO | Pacote | Script local |
+|---|---|---|
+| Linux (deb) | `freeai_<versão>_amd64.deb` | `npm run pack:linux` |
+| Windows 10/11 | instalador NSIS `.exe` + `.exe` portable | `npm run pack:win` (recomendado via CI) |
+| macOS | `.dmg` (Apple Silicon e Intel) + `.zip` | `npm run pack:mac` (só pode rodar num macOS) |
+
+Os pacotes **não são assinados**. No primeiro uso:
+
+- **Windows**: se o SmartScreen avisar «O Windows protegeu seu computador», clique em **Mais informações → Executar assim mesmo**.
+- **macOS**: na primeira abertura do `.app`, use **clique direito → Abrir** (ou, se necessário, `xattr -dr com.apple.quarantine /Applications/FreeAI.app`). Depois disso a abertura é normal.
+
+## Ferramentas do agente por sistema operacional
+
+O agente usa o shell e os utilitários nativos de cada SO:
+
+| Recurso | Linux | macOS | Windows 10/11 |
+|---|---|---|---|
+| `run_command` / Terminal | bash | zsh | PowerShell |
+| Captura de tela | scrot / ImageMagick | `screencapture` (requer permissão de Gravação de Tela em Ajustes do Sistema → Privacidade e Segurança) | PowerShell + .NET |
+| Simulação de teclado/mouse | xdotool (completa) | AppleScript: apenas teclado (`keyPress`/`type`) e espera; ações por coordenada retornam `UNAVAILABLE` | `simulate_input` indisponível — o agente usa `run_command` |
+
+A primeira execução de captura de tela ou simulação de teclado no macOS pode exigir autorização manual em Ajustes do Sistema; o app orienta quando a permissão faltar.
 
 ## Como funciona
 
@@ -56,7 +79,7 @@ O projeto **não executa atualmente o binário nem a biblioteca `browser39`**. E
 
 - O agente pode executar comandos no computador e ler ou alterar arquivos. Revise as ações e os comandos antes de confiar no resultado; não use com conteúdo ou prompts não confiáveis sem supervisão.
 - As sessões de login usam partições persistentes do Electron neste dispositivo. Não compartilhe o perfil local do aplicativo e encerre as sessões nos próprios provedores quando necessário.
-- A configuração atual do Electron desativa o sandbox do Chromium (`--no-sandbox`, `sandbox: false`) por compatibilidade. Isso reduz o isolamento de segurança; use o app apenas em ambientes confiáveis.
+- No Linux, o app roda com `--no-sandbox` por compatibilidade; em todas as plataformas a janela principal usa `sandbox: false` no Electron. Isso reduz o isolamento de segurança; use o app apenas em ambientes confiáveis. No Windows e no macOS o sandbox de processos do Chromium permanece ativo.
 - Conversas, arquivos acessados e comandos podem conter dados pessoais. Evite enviar dados sensíveis a provedores externos.
 - Não coloque tokens, cookies, arquivos `.env`, bancos de dados ou logs no repositório. Revise os arquivos staged antes de cada publicação; `.gitignore` reduz o risco, mas não substitui essa revisão.
 - A disponibilidade e o comportamento das integrações podem mudar quando os provedores atualizam seus sites.

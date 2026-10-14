@@ -2,7 +2,7 @@
 
 > **Versão do Documento:** 2.0.0 (FINAL)
 > **Data de Conclusão:** 2026-10-12
-> **Sistema Operacional Alvo:** Linux (Ubuntu / Debian / Arch / Fedora)
+> **Sistema Operacional Alvo:** Linux (Ubuntu / Debian / Arch / Fedora), Windows 10/11 e macOS
 > **Repositório:** raiz do projeto
 > **Status Atual:** implementação compilada; valide os recursos no ambiente de destino antes de distribuir.
 
