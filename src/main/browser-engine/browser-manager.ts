@@ -111,6 +111,9 @@ export class BrowserManager {
     callbacks: DriverCallbacks,
     opts: GenericSendOptions = {}
   ): Promise<string> {
+    if (!this.isLegacy(provider) && !this.genericDrivers.has(provider)) {
+      throw new Error(`Provedor desconhecido: ${provider}`);
+    }
     const win = await this.ensureBackgroundWindow(provider);
     if (!win) {
       throw new Error(`Não foi possível abrir a sessão web de ${provider}. Verifique a internet.`);

@@ -1,7 +1,14 @@
 import { BrowserManager } from '../browser-engine/browser-manager';
 import * as path from 'path';
-import { getAgentSystemPrompt } from './system-prompt';
-import { parseToolCalls, looksLikeToolCall, TOOL_FORMAT_FALLBACK, ParsedToolCall } from './tool-parser';
+import {
+  getAgentSystemPrompt,
+  CONTINUE_NUDGE,
+  TOOL_FORMAT_FALLBACK,
+  buildToolResultFeedback,
+  formatToolResult,
+  composeInitialRequest
+} from '../SystemPrompts';
+import { parseToolCalls, looksLikeToolCall, ParsedToolCall } from './tool-parser';
 import { runCommand } from './tools/run-command';
 import { viewFile, writeToFile, replaceFileContent, searchFiles, listDirectory } from './tools/file-tools';
 import { searchWeb } from './tools/search-tools';
@@ -17,14 +24,19 @@ import {
   export3dModel
 } from './tools/model3d-tools';
 
-// Mensagem que mantém a IA trabalhando. O app dirige um site de chat que só responde
-// quando recebe uma mensagem; enquanto a IA não chamar stop, enviamos este nudge.
-const CONTINUE_NUDGE =
-  'Continue working on the user\u2019s request. You are still running and this platform only replies when it gets a message, ' +
-  'so the app keeps prompting you to make progress.\n' +
-  '- If there is ANY remaining work, take the next step now (a tool call or real progress). Do not stop early.\n' +
-  '- If and ONLY if the task is fully complete and your final answer to the user is ready, emit exactly this to close the run:\n' +
-  '<tool_call name="stop">\n{}\n</tool_call>';
+const PROJECT_ONLY_TOOLS = new Set([
+  'write_to_file',
+  'replace_file_content',
+  'project_memory',
+  'run_background_command',
+  'screen_capture',
+  'simulate_input',
+  'create_3d_model',
+  'render_3d_model',
+  'preview_3d_model',
+  'edit_3d_model',
+  'export_3d_model'
+]);
 
 export interface AgentEventCallbacks {
   onToken: (token: string, fullText: string) => void;
@@ -58,7 +70,7 @@ export class AgentOrchestrator {
     try {
       const hasProject = Boolean(opts.projectPath);
       const systemPrompt = getAgentSystemPrompt(cwd, hasProject);
-      let currentInput = `${systemPrompt}\n\n[USER REQUEST]:\n${userPrompt}`;
+      let currentInput = composeInitialRequest(systemPrompt, userPrompt);
       let iteration = 0;
       const maxIterations = 12;
       let finalAccumulatedText = '';
@@ -83,12 +95,13 @@ export class AgentOrchestrator {
         // Verifica se o modelo chamou ferramentas
         const toolCalls = parseToolCalls(responseText);
 
-        // A IA encerrou explicitamente: o texto desta resposta é a resposta final.
-        if (toolCalls.some((t) => t.name === 'stop')) {
+        const stopIndex = toolCalls.findIndex((tool) => tool.name === 'stop');
+        if (stopIndex === 0) {
           break;
         }
+        const executableTools = stopIndex === -1 ? toolCalls : toolCalls.slice(0, stopIndex);
 
-        if (toolCalls.length === 0 || mode === 'fast') {
+        if (executableTools.length === 0 || mode === 'fast') {
           // Fallback: marcação de ferramenta que nenhum parser reconhece (formato novo do
           // provedor). Pede reformatação uma vez em vez de parar e mostrar o protocolo cru.
           if (toolCalls.length === 0 && !reformattedOnce && looksLikeToolCall(responseText)) {
@@ -113,7 +126,7 @@ export class AgentOrchestrator {
         // Executa ferramentas no sistema operacional Linux
         const toolResultsPayload: string[] = [];
 
-        for (const tool of toolCalls) {
+        for (const tool of executableTools) {
           if (this.isCancelled) break;
 
           const toolId = `tool-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
@@ -146,18 +159,14 @@ export class AgentOrchestrator {
             durationMs,
           });
 
-          toolResultsPayload.push(`[TOOL RESULT for ${tool.name}]:\n${toolOutput}`);
+          toolResultsPayload.push(formatToolResult(tool.name, toolOutput));
         }
 
         if (this.isCancelled) break;
 
-        // Prepara feedback para a próxima iteração do agente
-        currentInput = `Here are the execution results of your tool calls on the local Linux system:\n\n` +
-          toolResultsPayload.join('\n\n') +
-          `\n\nEvaluate the results and keep working toward the user's request. This platform only replies when it receives a message, so the app will keep prompting you until you end the run.` +
-          `\n- If any work remains, take the next step now.` +
-          `\n- When the task is FULLY complete and your final answer is ready, emit exactly this to stop:\n` +
-          `<tool_call name="stop">\n{}\n</tool_call>`;
+        if (stopIndex !== -1) break;
+
+        currentInput = buildToolResultFeedback(toolResultsPayload);
 
         if (iteration >= maxIterations) cappedWithWorkPending = true;
       }
@@ -187,6 +196,9 @@ export class AgentOrchestrator {
     hasProject = false
   ): Promise<string> {
     const params = tool.parameters || {};
+    if (!hasProject && PROJECT_ONLY_TOOLS.has(tool.name)) {
+      throw new Error('Esta ferramenta exige um projeto aberto. Crie um projeto e inicie a conversa nele.');
+    }
     const requireProject = () => {
       if (!hasProject) {
         throw new Error('ferramentas de modelo 3D gravam arquivos; peça ao usuário para abrir um projeto (Novo Projeto) e reinicie a conversa nele');

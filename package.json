@@ -1,6 +1,6 @@
 {
   "name": "freeai",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "FreeAI - AI Agent Desktop for Linux",
   "homepage": "https://github.com/thiago142007/FreeAI",
   "main": "dist/main/index.js",
@@ -13,7 +13,9 @@
     "build": "npm run build:renderer && npm run build:main",
     "start": "electron . --no-sandbox --disable-gpu",
     "pack": "electron-builder --linux",
-    "build:deb": "npm run build && electron-builder --linux deb"
+    "build:deb": "npm run build && electron-builder --linux deb",
+    "test": "npm run build:main && node --test 'tests/**/*.test.mjs'",
+    "test:ui": "node scripts/ui-audit.js"
   },
   "dependencies": {
     "@codemirror/lang-css": "^6.3.1",

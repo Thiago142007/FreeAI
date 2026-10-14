@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# FreeAI — Antigravity Linux Desktop Launcher
+# FreeAI
 set -e
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 cd "$DIR"
 
 echo "========================================================"
-echo "          Starting FreeAI (Antigravity Linux)          "
+echo "          Starting FreeAI          "
 echo "========================================================"
 echo "Headless Browser Engine: Active (DeepSeek, Gemini, ChatGPT)"
 echo "Port: 1111"

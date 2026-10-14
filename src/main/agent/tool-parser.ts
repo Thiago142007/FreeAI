@@ -10,7 +10,36 @@ function cleanAndParseJson(raw: string): any {
   if (cleaned.startsWith('```')) {
     cleaned = cleaned.replace(/^```[a-zA-Z]*\n?/, '').replace(/\n?```$/, '').trim();
   }
-  return JSON.parse(cleaned);
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    let repaired = '';
+    let inString = false;
+    let escaped = false;
+    for (let i = 0; i < cleaned.length; i++) {
+      const char = cleaned[i];
+      if (char === '"' && !escaped) {
+        if (!inString) {
+          inString = true;
+          repaired += char;
+        } else {
+          let next = i + 1;
+          while (next < cleaned.length && /\s/.test(cleaned[next])) next++;
+          if (next === cleaned.length || ',}:]'.includes(cleaned[next])) {
+            inString = false;
+            repaired += char;
+          } else {
+            repaired += '\\"';
+          }
+        }
+      } else {
+        repaired += char;
+      }
+      if (char === '\\' && !escaped) escaped = true;
+      else escaped = false;
+    }
+    return JSON.parse(repaired);
+  }
 }
 
 function parseParamValue(raw: string): any {
@@ -25,15 +54,6 @@ function parseParamValue(raw: string): any {
   }
   return raw;
 }
-
-// Mensagem enviada quando o modelo emite chamada de ferramenta em formato desconhecido.
-const TOOL_CALL_CLOSE = '<' + '/tool_call>';
-
-export const TOOL_FORMAT_FALLBACK =
-  'Your previous tool call could not be parsed by the local executor, so nothing ran. ' +
-  'Do NOT reuse that format. Re-emit the SAME tool call using exactly this format, with valid JSON inside:\n\n' +
-  '<tool_call name="tool_name">\n{"param": "value"}\n' + TOOL_CALL_CLOSE + '\n\n' +
-  'Put any reasoning before the block, and emit only one block.';
 
 // Detecta marcação de ferramenta que nenhum formato conhecido reconheceu. É o gatilho do
 // fallback no orquestrador: sem ele a corrida pararia mostrando o protocolo cru ao usuário.
@@ -52,7 +72,7 @@ export function parseToolCalls(text: string): ParsedToolCall[] {
   const toolCalls: ParsedToolCall[] = [];
 
   // Format 1: XML tag: <tool_call name="tool_name">{"param": "val"}</tool_call> ou <tool_call name="...">
-  const xmlRegex = /<tool_call(?:\s+name=["']([^"']+)["'])?>([\s\S]*?)<\/tool_call>/gi;
+  const xmlRegex = /<tool_call(?:\s+name=["']([^"']+)["'])?>([\s\S]*?)(?:<\/tool_call>|(?=<tool_call(?:\s|>))|$)/gi;
   let xmlMatch;
   while ((xmlMatch = xmlRegex.exec(text)) !== null) {
     try {

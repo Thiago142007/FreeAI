@@ -22,12 +22,23 @@ export async function runCommand(
     const child = spawn('bash', ['-c', command], {
       cwd,
       env: { ...process.env, PAGER: 'cat' },
+      detached: process.platform !== 'win32',
     });
+
+    let forceKillTimer: NodeJS.Timeout | undefined;
+    const signalProcessGroup = (signal: NodeJS.Signals) => {
+      if (!child.pid) return;
+      try {
+        process.kill(process.platform === 'win32' ? child.pid : -child.pid, signal);
+      } catch {
+        child.kill(signal);
+      }
+    };
 
     const timer = setTimeout(() => {
       isTimedOut = true;
-      child.kill('SIGTERM');
-      setTimeout(() => child.kill('SIGKILL'), 2000);
+      signalProcessGroup('SIGTERM');
+      forceKillTimer = setTimeout(() => signalProcessGroup('SIGKILL'), 2000);
     }, timeoutMs);
 
     child.stdout.on('data', (data) => {
@@ -40,6 +51,7 @@ export async function runCommand(
 
     child.on('close', (code) => {
       clearTimeout(timer);
+      if (forceKillTimer) clearTimeout(forceKillTimer);
       const durationMs = Date.now() - startTime;
 
       if (isTimedOut) {
@@ -56,6 +68,7 @@ export async function runCommand(
 
     child.on('error', (err) => {
       clearTimeout(timer);
+      if (forceKillTimer) clearTimeout(forceKillTimer);
       const durationMs = Date.now() - startTime;
       resolve({
         stdout,

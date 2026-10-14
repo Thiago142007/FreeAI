@@ -36,6 +36,9 @@ function projectsFile(): string {
 }
 
 function conversationFile(id: string): string {
+  if (!/^[A-Za-z0-9_-]+$/.test(id)) {
+    throw new Error('Invalid conversation id');
+  }
   return path.join(storageRoot(), 'conversations', `${id}.json`);
 }
 

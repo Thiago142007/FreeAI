@@ -16,6 +16,7 @@ import { useSettingsStore } from '../../../store/settings-store';
 import { MessageItem } from '../../chat/MessageItem';
 import { PromptBox } from '../../chat/PromptBox';
 import { v4 as uuidv4 } from 'uuid';
+import { buildFileEditPrompt } from '../../../SystemPrompts/file-edit-prompt';
 
 // oneDark pinta #282c34 (azulado); o app é grafite neutro.
 const neutralSurface = EditorView.theme(
@@ -233,18 +234,13 @@ export const FileEditorView: React.FC = () => {
 
     const state = useEditorStore.getState();
     const truncated = state.content.slice(0, 20000);
-    let prompt =
-      `[FILE EDIT] The user is editing this file locally in the FreeAI editor.\n` +
-      `File path: ${state.opened.path}\nProject root: ${state.opened.root}\n\n` +
-      `[CURRENT FILE CONTENT]:\n\`\`\`\n${truncated}\n\`\`\`\n\n` +
-      `[USER REQUEST]:\n${text}`;
-    if (state.onlyThisFile) {
-      prompt +=
-        `\n\n[STRICT SCOPE] You are ONLY allowed to modify the single file ${state.opened.path} ` +
-        `(use write_to_file / replace_file_content on exactly this path). Do NOT create, modify, ` +
-        `delete or move ANY other file or directory in the project. If the correct fix would require ` +
-        `touching another file, do not do it — explain what would be needed instead.`;
-    }
+    const prompt = buildFileEditPrompt({
+      path: state.opened.path,
+      root: state.opened.root,
+      content: truncated,
+      request: text,
+      onlyThisFile: state.onlyThisFile
+    });
 
     if (window.freeai && state.opened.root) {
       window.freeai.sendMessage({

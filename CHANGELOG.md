@@ -2,6 +2,19 @@
 
 As mudanças relevantes do FreeAI são registradas neste arquivo.
 
+## [0.3.1] - 2026-10-13
+
+### Corrigido
+- Chats sem projeto não podem usar ferramentas de escrita, memória, captura de tela, simulação de entrada, tarefas em background ou modelagem 3D.
+- IDs de conversa inválidos são rejeitados para impedir leitura ou gravação fora do diretório de conversas.
+- Timeouts de comandos encerram o grupo de processos para evitar filhos órfãos e pipes presos.
+- IDs de provedores desconhecidos são rejeitados antes de abrir uma sessão web.
+- Chamadas de ferramenta anteriores a `stop` na mesma resposta são executadas; o parser também recupera blocos truncados e JSON com aspas internas comuns em comandos.
+
+### Adicionado
+- Prompts do agente e do editor foram separados em módulos reutilizáveis.
+- Suítes automatizadas para orquestração, IPC, provedores, armazenamento, comandos e parser, além de scripts locais de auditoria da UI.
+
 ## [0.3.0] - 2026-10-13
 
 ### Adicionado
