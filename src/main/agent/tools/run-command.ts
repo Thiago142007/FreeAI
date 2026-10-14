@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import { getPlatformAdapter } from '../../platform';
 
 export interface CommandResult {
   stdout: string;
@@ -13,13 +14,15 @@ export async function runCommand(
   timeoutMs: number = 60000
 ): Promise<CommandResult> {
   const startTime = Date.now();
+  const adapter = getPlatformAdapter();
 
   return new Promise((resolve) => {
     let stdout = '';
     let stderr = '';
     let isTimedOut = false;
 
-    const child = spawn('bash', ['-c', command], {
+    const shell = adapter.spawnShell(command);
+    const child = spawn(shell.cmd, shell.args, {
       cwd,
       env: { ...process.env, PAGER: 'cat' },
       detached: process.platform !== 'win32',
@@ -28,11 +31,7 @@ export async function runCommand(
     let forceKillTimer: NodeJS.Timeout | undefined;
     const signalProcessGroup = (signal: NodeJS.Signals) => {
       if (!child.pid) return;
-      try {
-        process.kill(process.platform === 'win32' ? child.pid : -child.pid, signal);
-      } catch {
-        child.kill(signal);
-      }
+      adapter.killTree(child, signal);
     };
 
     const timer = setTimeout(() => {

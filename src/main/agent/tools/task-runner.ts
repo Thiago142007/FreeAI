@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import * as crypto from 'crypto';
+import { getPlatformAdapter } from '../../platform';
 
 interface BackgroundTask {
   id: string;
@@ -14,7 +15,7 @@ const tasks = new Map<string, BackgroundTask>();
 const MAX_OUTPUT = 100000;
 
 // run_background_command / check_background_task: padrão dos jobs de longa
-// duração do ZeroScript (generate_* + wait_job_finished), trazido para o Linux
+// duração do ZeroScript (generate_* + wait_job_finished), trazido para o app
 export function runBackgroundCommand(command: string, cwd?: string): string {
   const id = `task-${crypto.randomBytes(4).toString('hex')}`;
   const task: BackgroundTask = {
@@ -27,7 +28,8 @@ export function runBackgroundCommand(command: string, cwd?: string): string {
   };
   tasks.set(id, task);
 
-  const child = spawn('bash', ['-c', command], { cwd, env: process.env });
+  const sh = getPlatformAdapter().spawnShell(command);
+  const child = spawn(sh.cmd, sh.args, { cwd, env: process.env });
 
   const append = (chunk: Buffer, tag: string) => {
     task.output += (task.output ? '' : '') + `[${tag}] ${chunk.toString()}`;
