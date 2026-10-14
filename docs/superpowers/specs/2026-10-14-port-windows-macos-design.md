@@ -75,7 +75,7 @@ Consumidores a refactorar (removendo SO-hardcode):
   `oneClick:false`, `allowToChangeInstallationDirectory:true`) e `mac` (targets `dmg`
   arch `[arm64, x64]` + `zip`; `category: public.app-category.developer-tools`;
   `identity:null`, `hardenedRuntime:false`, `gatekeeperAssess:false`);
-  `asarUnpack: ["**/*.wasm"]` para o OpenSCAD WASM carregado no processo main.
+  ~~`asarUnpack: ["**/*.wasm"]`~~ — removido durante a implementação: nenhuma dependência contém `.wasm` externo (o motor OpenSCAD embute o binário no JS).
 - `.github/workflows/build.yml`:
   - `on`: push de tag `v*` + `workflow_dispatch`.
   - job `test`: matriz `ubuntu-latest`, `windows-latest`, `macos-latest` rodando `npm ci`,

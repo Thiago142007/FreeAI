@@ -14,7 +14,7 @@
     ],
     "maintainer": "FreeAI contributors <maintainers@freeai.invalid>",
     "category": "Development",
-    "icon": "src/renderer/public/icon.png",
+    "icon": "build/icon.png",
     "synopsis": "Unofficial desktop client for AI-assisted development",
     "executableArgs": [
       "--no-sandbox",
@@ -24,5 +24,27 @@
   "deb": {
     "packageCategory": "devel",
     "priority": "optional"
+  },
+  "win": {
+    "target": [
+      { "target": "nsis", "arch": ["x64"] },
+      { "target": "portable", "arch": ["x64"] }
+    ],
+    "icon": "build/icon.png"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true
+  },
+  "mac": {
+    "target": [
+      { "target": "dmg", "arch": ["arm64", "x64"] },
+      "zip"
+    ],
+    "icon": "build/icon.png",
+    "category": "public.app-category.developer-tools",
+    "identity": null,
+    "hardenedRuntime": false,
+    "gatekeeperAssess": false
   }
 }

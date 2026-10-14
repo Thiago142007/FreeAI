@@ -605,8 +605,9 @@ file build/icon.png   # esperar: PNG image data, 1024 x 1024
   "hardenedRuntime": false,
   "gatekeeperAssess": false
 },
-"asarUnpack": ["**/*.wasm"]
 ```
+
+_Nota da execução:_ `asarUnpack` foi omitido — nenhuma dependência contém `.wasm` (o motor OpenSCAD embute o binário no JS); a regra seria um no-op enganoso.
 
 - [ ] **Step 3: Validar build Linux local** — `npm run build && npm run pack:linux` → `.deb` gerado como antes (wasm unpack não pode quebrar o pacote).
 - [ ] **Step 4: Commit** — `git add build/icon.png electron-builder.json && git commit -m "Add win/mac packaging targets with shared icon"`.
