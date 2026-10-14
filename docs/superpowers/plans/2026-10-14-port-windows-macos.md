@@ -560,7 +560,7 @@ No `<header>`: trocar `px-3` por `` `ps-3 ${isMac ? 'pl-[74px]' : 'pl-3'}` `` ma
 "pack:win": "electron-builder --win",
 "pack:mac": "electron-builder --mac",
 "build:deb": "npm run build && electron-builder --linux deb",
-"test": "npm run build:main && node --test tests/",
+"test": "npm run build:main && node --test \"tests/*.test.mjs\"",
 ```
 
 (remove `pack` antigo; flags `--no-sandbox --disable-gpu` saem dos scripts — decisão agora vive no adaptador.) Descrição: `FreeAI - AI Agent Desktop for Linux, Windows and macOS`.
