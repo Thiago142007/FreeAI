@@ -7,6 +7,8 @@ Cliente desktop experimental para Linux, Windows 10/11 e macOS que conecta prove
 ## Recursos
 
 - Interface desktop baseada em Electron, React e TypeScript.
+- Execução em Linux, Windows 10/11 e macOS, com shell e ferramentas locais adaptados a cada sistema.
+- Testes e empacotamento automatizados para os três sistemas operacionais.
 - Conexão com DeepSeek, Gemini e ChatGPT por sessões web persistentes.
 - Respostas em streaming e modos de agente, planejamento e resposta rápida.
 - Ferramentas para listar, ler e editar arquivos e executar comandos locais.
@@ -45,6 +47,8 @@ No Linux, `./start-freeai.sh` continua disponível como atalho.
 ## Instaladores e releases
 
 O CI do GitHub Actions (workflow `build`) roda a suíte de testes nos três SOs e gera os pacotes:
+
+Ao enviar uma tag `v*`, o workflow cria um rascunho de release no GitHub com os instaladores. A publicação final desse rascunho é manual.
 
 | SO | Pacote | Script local |
 |---|---|---|
