@@ -2,6 +2,19 @@
 
 As mudanças relevantes do FreeAI são registradas neste arquivo.
 
+## [Unreleased]
+
+### Adicionado
+- Suporte para executar o FreeAI no Windows 10/11 e no macOS, além do Linux, com comandos locais usando PowerShell e zsh, respectivamente.
+- Captura de tela adaptada a cada sistema; simulação de entrada mantém suporte completo no Linux, oferece ações limitadas de teclado no macOS e informa indisponibilidade no Windows.
+- Scripts de empacotamento para Windows e macOS, incluindo instalador e versão portable no Windows e DMG/ZIP para Apple Silicon e Intel no macOS.
+- CI no GitHub Actions para testar os três sistemas operacionais e gerar seus pacotes; a criação de releases é acionada por tags `v*`.
+
+### Alterado
+- Barra de título e ciclo de vida da janela ajustados para seguir o comportamento nativo de cada plataforma.
+- Prompts e mensagens das ferramentas agora identificam o sistema operacional e as limitações locais correspondentes.
+- Documentação atualizada com instruções de execução, empacotamento e diferenças entre as ferramentas por sistema.
+
 ## [0.4.0] - 2026-10-13
 
 ### Adicionado
